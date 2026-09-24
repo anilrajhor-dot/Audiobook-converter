@@ -135,19 +135,29 @@
 
   .shelf-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 9px 6px;
     border-radius: 3px;
-    cursor: pointer;
     font-size: 13.5px;
     border-bottom: 1px solid var(--border);
   }
   .shelf-item:last-child { border-bottom: none; }
   .shelf-item:hover { background: var(--surface-2); }
-  .shelf-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .shelf-item .pct { font-size: 11px; color: var(--accent); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .shelf-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  .shelf-item .pct { font-size: 11px; color: var(--accent); flex-shrink: 0; font-variant-numeric: tabular-nums; cursor: pointer; }
+  .shelf-item .shelf-remove {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 4px;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .shelf-item .shelf-remove:hover { color: var(--accent-2); }
   .shelf-empty { font-size: 13px; color: var(--text-muted); }
 
   .chapter-item {
@@ -367,8 +377,7 @@
     max-width: 160px;
     font-family: inherit;
   }
-  .bookmark-btn {
-    margin-left: auto;
+  .pill-btn {
     background: none;
     border: 1px solid var(--border-ink);
     color: var(--text-ink);
@@ -378,6 +387,8 @@
     cursor: pointer;
     font-family: inherit;
   }
+  .pill-btn:hover { background: var(--ink-2); }
+  .bookmark-btn { margin-left: auto; }
 
   #exportPanel .field { flex-wrap: nowrap; margin-bottom: 8px; }
   #exportPanel .field label { min-width: 62px; flex-shrink: 0; color: var(--text-muted); font-size: 12.5px; }
@@ -393,6 +404,15 @@
   }
   #exportPanel .helptext { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0 0 10px; }
   #downloadAudioLink { display: none; align-items: center; justify-content: center; }
+
+  .app-footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 24px 16px 8px;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
 
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } * { scroll-behavior: auto !important; } }
@@ -412,7 +432,7 @@
   <aside class="sidebar">
     <div class="panel">
       <h2>Your shelf <span class="count" id="shelfCount"></span></h2>
-      <div id="shelfList"><p class="shelf-empty">Books you open will appear here, with your reading progress saved.</p></div>
+      <div id="shelfList"><p class="shelf-empty">Books you open will be saved here in full — reopen anytime, no re-uploading.</p></div>
     </div>
     <div class="panel" id="chapterPanel" style="display:none;">
       <h2>Chapters <span class="count" id="chapterCount"></span></h2>
@@ -438,6 +458,7 @@
         <datalist id="openaiVoiceList">
           <option value="alloy"><option value="echo"><option value="fable"><option value="onyx"><option value="nova"><option value="shimmer">
         </datalist>
+        <p class="helptext" style="margin-top:6px;">OpenAI voices: nova, shimmer and alloy read as female; echo, onyx and fable read as male — OpenAI has no dedicated child voice. On ElevenLabs, paste any voice ID from your Voice Library (elevenlabs.io/voice-library), including their female, male and child voices.</p>
       </div>
       <div class="field">
         <label for="exportScope">Narrate</label>
@@ -467,7 +488,7 @@
 
     <details class="tips">
       <summary>What to expect</summary>
-      Reading uses your browser's own built‑in voice, so it works offline and needs no account — but voice quality depends on your device, and iOS Safari sometimes restarts the current sentence if you switch apps mid‑playback. Scanned pages and photos go through on‑device text recognition (OCR), which takes longer and can misread poor‑quality scans. Multi‑column magazine layouts may read out of natural order, since column detection isn't perfect. Progress is saved per file in this browser; re‑select the same file later to pick up where you left off.
+      Reading uses your browser's own built‑in voice, so it works offline and needs no account — but voice quality depends on your device, and iOS Safari sometimes restarts the current sentence if you switch apps mid‑playback. Scanned pages and photos go through on‑device text recognition (OCR), which takes longer and can misread poor‑quality scans. Multi‑column magazine layouts may read out of natural order, since column detection isn't perfect. Every book you open is saved in full in this browser, so it's on your shelf to reopen anytime without re‑selecting the file — clearing your browser's site data removes it, so it isn't a backup.
     </details>
 
     <div class="book-view" id="bookView">
@@ -490,10 +511,13 @@
   </section>
 </main>
 
+<footer class="app-footer">Developed by Anil Sharma, Former General Manager, Central Bank of India</footer>
+
 <div class="player" id="player">
   <div class="player-inner">
     <div class="player-row1">
       <div class="transport">
+        <button id="stopBtn" title="Stop and reset to start of chapter">⏹</button>
         <button id="prevChapterBtn" title="Previous chapter">⏮</button>
         <button id="prevSentenceBtn" title="Back a sentence">◀</button>
         <button id="playPauseBtn" class="play-pause" title="Play">▶</button>
@@ -507,6 +531,16 @@
     </div>
     <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
     <div class="player-row2">
+      <button class="pill-btn" id="homeBtn" type="button" title="Stop and go back to your shelf">🏠 Home</button>
+      <div class="field">
+        <label for="voiceTypeFilter">Voice type</label>
+        <select id="voiceTypeFilter">
+          <option value="all">All voices</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="child">Child (if available)</option>
+        </select>
+      </div>
       <div class="field">
         <label for="voiceSelect">Voice</label>
         <select id="voiceSelect"></select>
@@ -520,7 +554,7 @@
         <label for="pitchRange">Pitch</label>
         <input type="range" id="pitchRange" min="0.6" max="1.5" step="0.1" value="1">
       </div>
-      <button class="bookmark-btn" id="bookmarkBtn" type="button">Bookmark this line</button>
+      <button class="pill-btn bookmark-btn" id="bookmarkBtn" type="button">Bookmark this line</button>
     </div>
   </div>
 </div>
@@ -570,6 +604,7 @@
   var generateAudioBtn = document.getElementById('generateAudioBtn');
 
   var player = document.getElementById('player');
+  var stopBtn = document.getElementById('stopBtn');
   var playPauseBtn = document.getElementById('playPauseBtn');
   var prevSentenceBtn = document.getElementById('prevSentenceBtn');
   var nextSentenceBtn = document.getElementById('nextSentenceBtn');
@@ -580,6 +615,7 @@
   var progressTrack = document.getElementById('progressTrack');
   var progressFill = document.getElementById('progressFill');
   var voiceSelect = document.getElementById('voiceSelect');
+  var voiceTypeFilter = document.getElementById('voiceTypeFilter');
   var rateRange = document.getElementById('rateRange');
   var rateLabel = document.getElementById('rateLabel');
   var pitchRange = document.getElementById('pitchRange');
@@ -606,45 +642,147 @@
   }
   function docId(file) { return file.name + '_' + file.size + '_' + file.lastModified; }
 
-  function loadLibrary() {
-    try { return JSON.parse(localStorage.getItem('lectern_library') || '{}'); }
-    catch (e) { return {}; }
+  var DB_NAME = 'lectern_db';
+  var DB_VERSION = 1;
+  function openDB() {
+    return new Promise(function(resolve, reject) {
+      try {
+        var req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = function(e) {
+          var db = e.target.result;
+          if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'id' });
+        };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror = function() { reject(req.error); };
+      } catch (e) { reject(e); }
+    });
   }
-  function saveLibraryEntry(id, meta) {
-    var lib = loadLibrary();
-    lib[id] = Object.assign({}, lib[id] || {}, meta, { updatedAt: Date.now() });
-    try { localStorage.setItem('lectern_library', JSON.stringify(lib)); } catch (e) {}
+  function dbPut(storeName, record) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        try {
+          var tx = db.transaction(storeName, 'readwrite');
+          tx.objectStore(storeName).put(record);
+          tx.oncomplete = function() { resolve(); };
+          tx.onerror = function() { reject(tx.error); };
+        } catch (e) { reject(e); }
+      });
+    }).catch(function(e) { console.error('Lectern: could not save to this browser\'s storage', e); });
+  }
+  function dbGet(storeName, id) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        try {
+          var tx = db.transaction(storeName, 'readonly');
+          var req = tx.objectStore(storeName).get(id);
+          req.onsuccess = function() { resolve(req.result || null); };
+          req.onerror = function() { reject(req.error); };
+        } catch (e) { reject(e); }
+      });
+    }).catch(function(e) { console.error('Lectern: could not read from this browser\'s storage', e); return null; });
+  }
+  function dbGetAll(storeName) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        try {
+          var tx = db.transaction(storeName, 'readonly');
+          var req = tx.objectStore(storeName).getAll();
+          req.onsuccess = function() { resolve(req.result || []); };
+          req.onerror = function() { reject(req.error); };
+        } catch (e) { reject(e); }
+      });
+    }).catch(function(e) { console.error('Lectern: could not read from this browser\'s storage', e); return []; });
+  }
+  function dbDelete(storeName, id) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        try {
+          var tx = db.transaction(storeName, 'readwrite');
+          tx.objectStore(storeName).delete(id);
+          tx.oncomplete = function() { resolve(); };
+          tx.onerror = function() { reject(tx.error); };
+        } catch (e) { reject(e); }
+      });
+    }).catch(function(e) { console.error('Lectern: could not remove from this browser\'s storage', e); });
+  }
+  function persistBookContent() {
+    if (!book) return;
+    dbPut('books', {
+      id: book.id,
+      title: book.title,
+      chapters: book.chapters.map(function(c) { return { title: c.title, text: c.text }; }),
+      addedAt: Date.now()
+    });
+  }
+  function persistProgress() {
+    if (!book) return;
+    var total = totalSentenceCount();
+    var done = sentencesReadSoFar();
+    dbPut('progress', {
+      id: book.id,
+      title: book.title,
+      chapterIndex: state.chapterIndex,
+      sentenceIndex: state.sentenceIndex,
+      totalSentences: total,
+      sentencesRead: done,
+      finished: total > 0 && done >= total,
+      updatedAt: Date.now()
+    });
     renderShelf();
-  }
-  function loadProgress(id) {
-    try { return JSON.parse(localStorage.getItem('lectern_progress_' + id) || 'null'); }
-    catch (e) { return null; }
-  }
-  function saveProgress(id, data) {
-    try { localStorage.setItem('lectern_progress_' + id, JSON.stringify(data)); } catch (e) {}
   }
 
   function renderShelf() {
-    var lib = loadLibrary();
-    var ids = Object.keys(lib).sort(function(a,b){ return (lib[b].updatedAt||0) - (lib[a].updatedAt||0); });
-    shelfCount.textContent = ids.length ? '(' + ids.length + ')' : '';
-    if (!ids.length) {
-      shelfList.innerHTML = '<p class="shelf-empty">Books you open will appear here, with your reading progress saved.</p>';
-      return;
-    }
-    shelfList.innerHTML = '';
-    ids.slice(0, 12).forEach(function(id) {
-      var entry = lib[id];
-      var pct = entry.totalSentences ? Math.round(100 * (entry.sentencesRead || 0) / entry.totalSentences) : 0;
-      var row = document.createElement('div');
-      row.className = 'shelf-item';
-      row.innerHTML = '<span class="name" title="' + escapeHtml(entry.title || id) + '">' + escapeHtml(entry.title || id) + '</span>' +
-                       '<span class="pct">' + (entry.finished ? 'done' : pct + '%') + '</span>';
-      row.addEventListener('click', function() {
-        setStatus('Select "' + (entry.title || 'this file') + '" again to continue — your place will be saved.');
-        fileInput.click();
+    dbGetAll('progress').then(function(list) {
+      list.sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+      shelfCount.textContent = list.length ? '(' + list.length + ')' : '';
+      if (!list.length) {
+        shelfList.innerHTML = '<p class="shelf-empty">Books you open will be saved here in full — reopen anytime, no re-uploading.</p>';
+        return;
+      }
+      shelfList.innerHTML = '';
+      list.slice(0, 20).forEach(function(entry) {
+        var pct = entry.totalSentences ? Math.round(100 * (entry.sentencesRead || 0) / entry.totalSentences) : 0;
+        var row = document.createElement('div');
+        row.className = 'shelf-item';
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'name';
+        nameSpan.title = entry.title || entry.id;
+        nameSpan.textContent = entry.title || entry.id;
+        var pctSpan = document.createElement('span');
+        pctSpan.className = 'pct';
+        pctSpan.textContent = entry.finished ? 'done' : pct + '%';
+        var removeBtn = document.createElement('button');
+        removeBtn.className = 'shelf-remove';
+        removeBtn.type = 'button';
+        removeBtn.title = 'Remove from shelf';
+        removeBtn.textContent = '✕';
+        nameSpan.addEventListener('click', function() { openSavedBook(entry.id); });
+        pctSpan.addEventListener('click', function() { openSavedBook(entry.id); });
+        removeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          dbDelete('progress', entry.id);
+          dbDelete('books', entry.id);
+          if (book && book.id === entry.id) goHome();
+          renderShelf();
+        });
+        row.appendChild(nameSpan);
+        row.appendChild(pctSpan);
+        row.appendChild(removeBtn);
+        shelfList.appendChild(row);
       });
-      shelfList.appendChild(row);
+    });
+  }
+
+  function openSavedBook(id) {
+    setStatus('Opening your saved book…');
+    dbGet('books', id).then(function(record) {
+      setStatus(null);
+      if (!record) {
+        setStatus('This book could not be found on your shelf anymore.');
+        return;
+      }
+      openBook({ title: record.title, chapters: record.chapters }, id, false);
     });
   }
 
@@ -920,7 +1058,7 @@
     var chapter = book.chapters[state.chapterIndex];
     nowTitle.textContent = book.title;
     nowSub.textContent = chapter.title + ' — ' + pct + '% through the book';
-    saveLibraryEntry(book.id, { title: book.title, totalSentences: total, sentencesRead: done, finished: done >= total });
+    persistProgress();
   }
 
   function updatePlayButton() {
@@ -929,17 +1067,35 @@
   }
 
   // ---------------- Voices ----------------
+  function classifyVoice(v) {
+    var n = (v.name + ' ' + (v.lang || '')).toLowerCase();
+    if (/\b(child|kid|junior|boy|girl)\b/.test(n)) return 'child';
+    if (/\b(female|woman|samantha|victoria|karen|susan|zira|fiona|moira|tessa|allison|ava|serena|kate|anna|amelie|ellen|joana|paulina|laura|monica|sara|satu|zosia|kyoko|mei-jia|yuna)\b/.test(n)) return 'female';
+    if (/\b(male|man|daniel|alex|fred|thomas|aaron|arthur|oliver|rishi|yannick|jorge|diego|carlos|george|james|gordon)\b/.test(n)) return 'male';
+    return 'unknown';
+  }
   function populateVoices() {
     var voices = speechSynthesis.getVoices();
+    var filter = voiceTypeFilter ? voiceTypeFilter.value : 'all';
+    var list = filter === 'all' ? voices : voices.filter(function(v) { return classifyVoice(v) === filter; });
+    if (!list.length) list = voices;
     voiceSelect.innerHTML = '';
-    voices.forEach(function(v) {
+    list.forEach(function(v) {
       var opt = document.createElement('option');
       opt.value = v.voiceURI;
       opt.textContent = v.name + ' (' + v.lang + ')' + (v.default ? ' — default' : '');
       voiceSelect.appendChild(opt);
     });
-    if (state.voiceURI) voiceSelect.value = state.voiceURI;
-    else if (voices.length) { state.voiceURI = voices[0].voiceURI; voiceSelect.value = state.voiceURI; }
+    var stillPresent = list.some(function(v) { return v.voiceURI === state.voiceURI; });
+    if (state.voiceURI && stillPresent) voiceSelect.value = state.voiceURI;
+    else if (list.length) { state.voiceURI = list[0].voiceURI; voiceSelect.value = state.voiceURI; }
+  }
+  if (voiceTypeFilter) {
+    voiceTypeFilter.addEventListener('change', function() {
+      populateVoices();
+      state.voiceURI = voiceSelect.value;
+      if (state.playing) speakFrom(state.chapterIndex, state.sentenceIndex);
+    });
   }
   if ('speechSynthesis' in window) {
     populateVoices();
@@ -972,11 +1128,10 @@
         state.chapterIndex++;
         state.sentenceIndex = 0;
         renderChapter();
-        saveProgress(book.id, { chapterIndex: state.chapterIndex, sentenceIndex: state.sentenceIndex });
+        persistProgress();
         playNextSentence();
       } else {
         stopPlayback();
-        saveProgress(book.id, { chapterIndex: state.chapterIndex, sentenceIndex: state.sentenceIndex });
         updateProgressUI();
       }
       return;
@@ -992,7 +1147,7 @@
     utter.onend = function() {
       if (!state.playing) return;
       state.sentenceIndex++;
-      saveProgress(book.id, { chapterIndex: state.chapterIndex, sentenceIndex: state.sentenceIndex });
+      persistProgress();
       playNextSentence();
     };
     utter.onerror = function() {
@@ -1020,7 +1175,6 @@
       state.chapterIndex = chapterIndex;
       state.sentenceIndex = sentenceIndex;
       renderChapter();
-      saveProgress(book.id, { chapterIndex: chapterIndex, sentenceIndex: sentenceIndex });
       updateProgressUI();
     }
   }
@@ -1030,6 +1184,16 @@
     if (!book) return;
     if (state.playing) pausePlayback();
     else speakFrom(state.chapterIndex, state.sentenceIndex);
+  });
+  stopBtn.addEventListener('click', function() {
+    if (!book) return;
+    stopPlayback();
+    state.sentenceIndex = 0;
+    renderChapter();
+    updateProgressUI();
+  });
+  document.getElementById('homeBtn').addEventListener('click', function() {
+    goHome();
   });
   prevSentenceBtn.addEventListener('click', function() {
     if (!book) return;
@@ -1078,14 +1242,14 @@
   });
   bookmarkBtn.addEventListener('click', function() {
     if (!book) return;
-    saveProgress(book.id, { chapterIndex: state.chapterIndex, sentenceIndex: state.sentenceIndex });
+    persistProgress();
     var original = bookmarkBtn.textContent;
     bookmarkBtn.textContent = 'Bookmarked ✓';
     setTimeout(function(){ bookmarkBtn.textContent = original; }, 1500);
   });
 
   // ---------------- File loading ----------------
-  function openBook(parsed, id) {
+  function openBook(parsed, id, isNewUpload) {
     book = {
       id: id,
       title: parsed.title || 'Untitled',
@@ -1102,18 +1266,38 @@
     exportPanel.style.display = 'block';
     player.classList.add('visible');
 
-    var saved = loadProgress(id);
-    if (saved && (saved.chapterIndex > 0 || saved.sentenceIndex > 0)) {
-      pendingResume = saved;
-      resumeText.textContent = 'You left off in "' + (book.chapters[saved.chapterIndex] || {}).title + '".';
-      resumeBanner.classList.add('visible');
-      state.chapterIndex = 0; state.sentenceIndex = 0;
-    } else {
-      resumeBanner.classList.remove('visible');
-      state.chapterIndex = 0; state.sentenceIndex = 0;
-    }
-    renderChapter();
-    updateProgressUI();
+    if (isNewUpload) persistBookContent();
+
+    dbGet('progress', id).then(function(saved) {
+      if (saved && (saved.chapterIndex > 0 || saved.sentenceIndex > 0)) {
+        pendingResume = saved;
+        resumeText.textContent = 'You left off in "' + (book.chapters[saved.chapterIndex] || {}).title + '".';
+        resumeBanner.classList.add('visible');
+        state.chapterIndex = 0; state.sentenceIndex = 0;
+      } else {
+        resumeBanner.classList.remove('visible');
+        state.chapterIndex = 0; state.sentenceIndex = 0;
+      }
+      renderChapter();
+      updateProgressUI();
+      readingPane.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+
+  function goHome() {
+    stopPlayback();
+    book = null;
+    bookView.classList.remove('visible');
+    chapterPanel.style.display = 'none';
+    exportPanel.style.display = 'none';
+    player.classList.remove('visible');
+    resumeBanner.classList.remove('visible');
+    pendingResume = null;
+    setStatus(null);
+    downloadAudioLink.style.display = 'none';
+    setExportStatus(null);
+    renderShelf();
+    dropzone.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   resumeBtn.addEventListener('click', function() {
@@ -1137,7 +1321,7 @@
     var id = docId(file);
     parseFile(file, setStatus).then(function(parsed) {
       setStatus(null);
-      openBook(parsed, id);
+      openBook(parsed, id, true);
     }).catch(function(err) {
       console.error(err);
       setStatus('Could not read this file — ' + (err && err.message ? err.message : 'unknown error') + '.');
