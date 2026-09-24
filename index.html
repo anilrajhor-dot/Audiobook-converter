@@ -216,6 +216,18 @@
   .formats { margin-top: 18px; font-size: 12px; color: var(--text-muted); }
   .formats span { display: inline-block; margin: 2px 6px; }
 
+  .dropzone .field { justify-content: center; gap: 8px; }
+  .dropzone .field label { color: var(--text-muted); font-size: 13px; }
+  .dropzone .field select {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+
   .status-box {
     margin-top: 16px;
     background: var(--surface-2);
@@ -414,6 +426,72 @@
     margin: 0 auto;
   }
 
+  .shelf-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .shelf-confirm {
+    margin-top: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--accent-2);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+  .chip-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .chip-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .chip-btn.danger { background: var(--accent-2); color: var(--text-ink); border-color: var(--accent-2); }
+
+  /* ---------- Help modal ---------- */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 21, 18, 0.55);
+    z-index: 30;
+    padding: env(safe-area-inset-top, 20px) 16px calc(env(safe-area-inset-bottom, 20px) + 16px);
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.visible { display: flex; }
+  .modal {
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 6px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 84vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-header h2 { font-family: 'Lora', serif; font-size: 19px; margin: 0; }
+  .modal-close {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 16px; cursor: pointer; padding: 4px 8px; font-family: inherit;
+  }
+  .modal-close:hover { color: var(--accent-2); }
+  .modal-body { padding: 4px 20px 20px; overflow-y: auto; font-size: 14px; line-height: 1.6; }
+  .modal-body h3 { font-family: 'Lora', serif; font-size: 15px; margin: 18px 0 6px; color: var(--accent-2); }
+  .modal-body h3:first-child { margin-top: 14px; }
+  .modal-body p { margin: 0 0 4px; color: var(--text); }
+  .modal-body ul { margin: 6px 0 0; padding-left: 20px; }
+  .modal-body li { margin-bottom: 4px; }
+
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } * { scroll-behavior: auto !important; } }
 </style>
@@ -425,7 +503,10 @@
     <h1>🎧 Lectern</h1>
     <span class="tagline">Turn any document into a spoken-word book</span>
   </div>
-  <div class="byline">Developed by Anil Sharma<br>Former General Manager, Central Bank of India</div>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <button class="pill-btn" id="helpBtn" type="button">❓ Help</button>
+    <div class="byline">Developed by Anil Sharma<br>Former General Manager, Central Bank of India</div>
+  </div>
 </header>
 
 <main class="layout">
@@ -433,6 +514,17 @@
     <div class="panel">
       <h2>Your shelf <span class="count" id="shelfCount"></span></h2>
       <div id="shelfList"><p class="shelf-empty">Books you open will be saved here in full — reopen anytime, no re-uploading.</p></div>
+      <div class="shelf-actions" id="shelfActions" style="display:none;">
+        <button class="chip-btn" id="clearFinishedBtn" type="button">Clear finished</button>
+        <button class="chip-btn" id="clearAllBtn" type="button">Clear all</button>
+      </div>
+      <div class="shelf-confirm" id="shelfConfirm" style="display:none;">
+        <span id="shelfConfirmText"></span>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="chip-btn danger" id="shelfConfirmYes" type="button">Yes, remove</button>
+          <button class="chip-btn" id="shelfConfirmNo" type="button">Cancel</button>
+        </div>
+      </div>
     </div>
     <div class="panel" id="chapterPanel" style="display:none;">
       <h2>Chapters <span class="count" id="chapterCount"></span></h2>
@@ -483,6 +575,25 @@
       <div class="formats">
         <span>PDF</span>·<span>EPUB</span>·<span>Word (.docx)</span>·<span>Plain text</span>·<span>Scanned photos (JPG/PNG)</span>
       </div>
+      <div class="field" style="justify-content:center; margin-top:14px;">
+        <label for="ocrLangSelect">Scanned-page language</label>
+        <select id="ocrLangSelect" style="max-width:220px;">
+          <option value="eng">English</option>
+          <option value="hin">Hindi</option>
+          <option value="ben">Bengali</option>
+          <option value="mar">Marathi</option>
+          <option value="guj">Gujarati</option>
+          <option value="pan">Punjabi</option>
+          <option value="tam">Tamil</option>
+          <option value="tel">Telugu</option>
+          <option value="kan">Kannada</option>
+          <option value="mal">Malayalam</option>
+          <option value="ori">Odia</option>
+          <option value="asm">Assamese</option>
+          <option value="urd">Urdu</option>
+          <option value="san">Sanskrit</option>
+        </select>
+      </div>
       <div class="status-box" id="statusBox"><div class="spinner"></div><span id="statusText"></span></div>
     </div>
 
@@ -512,6 +623,41 @@
 </main>
 
 <footer class="app-footer">Developed by Anil Sharma, Former General Manager, Central Bank of India</footer>
+
+<div class="modal-backdrop" id="helpBackdrop">
+  <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-header">
+      <h2 id="helpTitle">How to use Lectern</h2>
+      <button class="modal-close" id="helpCloseBtn" type="button" aria-label="Close help">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>1. Open a document</h3>
+      <p>Drop a file onto the panel, or tap "Choose a file". Lectern reads PDF, EPUB, Word (.docx), plain text, and photos or scans (JPG/PNG etc.) — scanned pages are recognised automatically with on-device OCR, which can take a little longer. If a scanned page or photo is in Hindi, Tamil, Bengali or another Indian language, pick it from the "Scanned-page language" dropdown first — OCR needs to know the script to read it correctly. PDFs, EPUBs, Word files and plain text with a proper text layer work in any language automatically, no picker needed.</p>
+
+      <h3>2. Listen</h3>
+      <p>Once a book opens, the player bar appears at the bottom. <strong>▶</strong> plays from where the highlighted sentence is; <strong>⏸</strong> pauses and keeps your place; <strong>⏹</strong> stops and jumps back to the start of the current chapter. The <strong>◀ ▶</strong> arrows move a sentence at a time, and <strong>⏮ ⏭</strong> jump a whole chapter. Tap anywhere on the thin progress bar to skip to that point in the book.</p>
+
+      <h3>3. Choose a voice</h3>
+      <p>"Voice type" narrows the list to female, male, or child voices where your device offers them, then pick the exact voice from "Voice". Speed and pitch sliders adjust the reading as it plays. Whether Hindi, Tamil or other Indian-language voices appear here depends entirely on your device and browser — some have them built in, others need a language pack added in the phone's own settings. If none is available, the book's text is still there to read, just without a matching voice to speak it.</p>
+
+      <h3>4. Your shelf</h3>
+      <p>Every book you open is saved here in full, so you can come back and read it in parts over time — no re-uploading. Tap a title on the shelf to reopen it where you left off. The ✕ on a row removes just that book; "Clear finished" removes every completed book at once, and "Clear all" empties the whole shelf. All of this lives only in this browser on this device.</p>
+
+      <h3>5. Home button</h3>
+      <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
+
+      <h3>6. Studio narration (optional, paid)</h3>
+      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Studio narration", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
+
+      <h3>Good to know</h3>
+      <ul>
+        <li>Works fully offline once the page is loaded, except for Studio narration, which needs the internet.</li>
+        <li>Multi-column magazine layouts can read out of natural order.</li>
+        <li>On iOS Safari, switching apps mid-sentence can restart that sentence.</li>
+      </ul>
+    </div>
+  </div>
+</div>
 
 <div class="player" id="player">
   <div class="player-inner">
@@ -576,6 +722,7 @@
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('fileInput');
   var browseBtn = document.getElementById('browseBtn');
+  var ocrLangSelect = document.getElementById('ocrLangSelect');
   var statusBox = document.getElementById('statusBox');
   var statusText = document.getElementById('statusText');
   var bookView = document.getElementById('bookView');
@@ -592,6 +739,17 @@
   var resumeText = document.getElementById('resumeText');
   var resumeBtn = document.getElementById('resumeBtn');
   var restartBtn = document.getElementById('restartBtn');
+
+  var shelfActions = document.getElementById('shelfActions');
+  var clearFinishedBtn = document.getElementById('clearFinishedBtn');
+  var clearAllBtn = document.getElementById('clearAllBtn');
+  var shelfConfirm = document.getElementById('shelfConfirm');
+  var shelfConfirmText = document.getElementById('shelfConfirmText');
+  var shelfConfirmYes = document.getElementById('shelfConfirmYes');
+  var shelfConfirmNo = document.getElementById('shelfConfirmNo');
+  var helpBtn = document.getElementById('helpBtn');
+  var helpBackdrop = document.getElementById('helpBackdrop');
+  var helpCloseBtn = document.getElementById('helpCloseBtn');
 
   var exportPanel = document.getElementById('exportPanel');
   var apiProviderSel = document.getElementById('apiProvider');
@@ -637,10 +795,14 @@
   }
   function splitSentences(text) {
     if (!text) return [];
-    var matches = text.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g);
+    var matches = text.match(/[^.!?।॥]+[.!?।॥]+(\s+|$)|[^.!?।॥]+$/g);
     return (matches || [text]).map(function(s){ return s.trim(); }).filter(Boolean);
   }
   function docId(file) { return file.name + '_' + file.size + '_' + file.lastModified; }
+  function ocrLangCode(lang) {
+    if (!lang || lang === 'eng') return 'eng';
+    return lang + '+eng';
+  }
 
   var DB_NAME = 'lectern_db';
   var DB_VERSION = 1;
@@ -736,7 +898,9 @@
     dbGetAll('progress').then(function(list) {
       list.sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
       shelfCount.textContent = list.length ? '(' + list.length + ')' : '';
+      shelfActions.style.display = list.length ? 'flex' : 'none';
       if (!list.length) {
+        shelfConfirm.style.display = 'none';
         shelfList.innerHTML = '<p class="shelf-empty">Books you open will be saved here in full — reopen anytime, no re-uploading.</p>';
         return;
       }
@@ -785,6 +949,58 @@
       openBook({ title: record.title, chapters: record.chapters }, id, false);
     });
   }
+
+  function removeBookIds(ids) {
+    return Promise.all(ids.map(function(id) {
+      return Promise.all([dbDelete('progress', id), dbDelete('books', id)]);
+    })).then(function() {
+      if (book && ids.indexOf(book.id) !== -1) goHome();
+      else renderShelf();
+    });
+  }
+  function clearFinishedBooks() {
+    dbGetAll('progress').then(function(list) {
+      var ids = list.filter(function(e) { return e.finished; }).map(function(e) { return e.id; });
+      removeBookIds(ids);
+    });
+  }
+  function clearAllBooks() {
+    dbGetAll('progress').then(function(list) {
+      removeBookIds(list.map(function(e) { return e.id; }));
+    });
+  }
+
+  var pendingClearAction = null;
+  function askShelfConfirm(msg, action) {
+    shelfConfirmText.textContent = msg;
+    shelfConfirm.style.display = 'block';
+    pendingClearAction = action;
+  }
+  clearFinishedBtn.addEventListener('click', function() {
+    askShelfConfirm('Remove every finished book from your shelf? This deletes their saved text too.', clearFinishedBooks);
+  });
+  clearAllBtn.addEventListener('click', function() {
+    askShelfConfirm('Remove every book from your shelf? This deletes all saved text and progress.', clearAllBooks);
+  });
+  shelfConfirmYes.addEventListener('click', function() {
+    shelfConfirm.style.display = 'none';
+    if (pendingClearAction) pendingClearAction();
+    pendingClearAction = null;
+  });
+  shelfConfirmNo.addEventListener('click', function() {
+    shelfConfirm.style.display = 'none';
+    pendingClearAction = null;
+  });
+
+  // ---------------- Help modal ----------------
+  function openHelp() { helpBackdrop.classList.add('visible'); }
+  function closeHelp() { helpBackdrop.classList.remove('visible'); }
+  helpBtn.addEventListener('click', openHelp);
+  helpCloseBtn.addEventListener('click', closeHelp);
+  helpBackdrop.addEventListener('click', function(e) { if (e.target === helpBackdrop) closeHelp(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && helpBackdrop.classList.contains('visible')) closeHelp();
+  });
 
   // ---------------- Paid narration export ----------------
   var apiSettings = { provider: 'openai', apiKey: '', voice: 'alloy' };
@@ -877,7 +1093,7 @@
   }
 
   // ---------------- Parsers ----------------
-  function parsePDF(file, onProgress) {
+  function parsePDF(file, onProgress, ocrLang) {
     return file.arrayBuffer().then(function(buf) {
       return pdfjsLib.getDocument({ data: buf }).promise;
     }).then(function(pdf) {
@@ -900,7 +1116,7 @@
             canvas.width = viewport.width; canvas.height = viewport.height;
             var ctx = canvas.getContext('2d');
             return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function() {
-              return Tesseract.recognize(canvas, 'eng').then(function(result) {
+              return Tesseract.recognize(canvas, ocrLangCode(ocrLang)).then(function(result) {
                 var ocrText = (result.data.text || '').replace(/\s+/g, ' ').trim();
                 chapters.push({ title: 'Page ' + i, text: ocrText || '(No readable text found on this page)' });
                 i++;
@@ -983,9 +1199,9 @@
     });
   }
 
-  function parseImage(file, onProgress) {
+  function parseImage(file, onProgress, ocrLang) {
     onProgress('Reading this photo with on-device OCR — this can take a minute');
-    return Tesseract.recognize(file, 'eng', {
+    return Tesseract.recognize(file, ocrLangCode(ocrLang), {
       logger: function(m) {
         if (m.status === 'recognizing text') onProgress('Recognising text — ' + Math.round(m.progress * 100) + '%');
       }
@@ -995,13 +1211,13 @@
     });
   }
 
-  function parseFile(file, onProgress) {
+  function parseFile(file, onProgress, ocrLang) {
     var ext = file.name.split('.').pop().toLowerCase();
-    if (ext === 'pdf') return parsePDF(file, onProgress);
+    if (ext === 'pdf') return parsePDF(file, onProgress, ocrLang);
     if (ext === 'epub') return parseEPUB(file, onProgress);
     if (ext === 'docx') return parseDOCX(file, onProgress);
     if (ext === 'txt') return parseTXT(file, onProgress);
-    if (['png','jpg','jpeg','gif','bmp','webp'].indexOf(ext) !== -1) return parseImage(file, onProgress);
+    if (['png','jpg','jpeg','gif','bmp','webp'].indexOf(ext) !== -1) return parseImage(file, onProgress, ocrLang);
     return Promise.reject(new Error('Unsupported file type: .' + ext + '. Try PDF, EPUB, DOCX, TXT, or a photo of the page.'));
   }
 
@@ -1141,7 +1357,7 @@
     var utter = new SpeechSynthesisUtterance(text);
     var voices = speechSynthesis.getVoices();
     var v = voices.filter(function(v){ return v.voiceURI === state.voiceURI; })[0];
-    if (v) utter.voice = v;
+    if (v) { utter.voice = v; utter.lang = v.lang; }
     utter.rate = state.rate;
     utter.pitch = state.pitch;
     utter.onend = function() {
@@ -1319,7 +1535,7 @@
     if (!file) return;
     setStatus('Opening ' + file.name + '…');
     var id = docId(file);
-    parseFile(file, setStatus).then(function(parsed) {
+    parseFile(file, setStatus, ocrLangSelect.value).then(function(parsed) {
       setStatus(null);
       openBook(parsed, id, true);
     }).catch(function(err) {
@@ -1340,6 +1556,14 @@
   dropzone.addEventListener('drop', function(e) {
     var f = e.dataTransfer.files && e.dataTransfer.files[0];
     if (f) handleFile(f);
+  });
+
+  try {
+    var savedOcrLang = localStorage.getItem('lectern_ocr_lang');
+    if (savedOcrLang) ocrLangSelect.value = savedOcrLang;
+  } catch (e) {}
+  ocrLangSelect.addEventListener('change', function() {
+    try { localStorage.setItem('lectern_ocr_lang', ocrLangSelect.value); } catch (e) {}
   });
 
   loadApiSettings();
