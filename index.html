@@ -674,6 +674,7 @@
   <div class="player-inner">
     <div class="player-row1">
       <div class="transport">
+        <button id="resumeJumpBtn" title="Jump to your last saved position"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M4 1h8a1 1 0 0 1 1 1v13l-5-3-5 3V2a1 1 0 0 1 1-1z"/></svg></button>
         <button id="stopBtn" title="Stop and reset to start of chapter"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="10" height="10"/></svg></button>
         <button id="prevChapterBtn" title="Previous chapter"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="2" height="12"/><path d="M14 2L6 8l8 6z"/></svg></button>
         <button id="prevSentenceBtn" title="Back a sentence"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2L4 8l8 6z"/></svg></button>
@@ -772,6 +773,7 @@
   var generateAudioBtn = document.getElementById('generateAudioBtn');
 
   var player = document.getElementById('player');
+  var resumeJumpBtn = document.getElementById('resumeJumpBtn');
   var stopBtn = document.getElementById('stopBtn');
   var playPauseBtn = document.getElementById('playPauseBtn');
   var prevSentenceBtn = document.getElementById('prevSentenceBtn');
@@ -1346,7 +1348,6 @@
 
   // ---------------- Playback engine ----------------
   function speakFrom(chapterIndex, sentenceIndex) {
-    speechSynthesis.cancel();
     state.chapterIndex = chapterIndex;
     state.sentenceIndex = sentenceIndex;
     state.playing = true;
@@ -1356,7 +1357,11 @@
     } else {
       highlightSentence(sentenceIndex);
     }
-    playNextSentence();
+    speechSynthesis.cancel();
+    // Chrome/Safari can silently drop an utterance spoken in the same tick as cancel() — a short defer avoids that.
+    setTimeout(function() {
+      if (state.playing) playNextSentence();
+    }, 60);
   }
 
   function playNextSentence() {
@@ -1424,6 +1429,15 @@
     if (!book) return;
     if (state.playing) pausePlayback();
     else speakFrom(state.chapterIndex, state.sentenceIndex);
+  });
+  resumeJumpBtn.addEventListener('click', function() {
+    if (!book) return;
+    dbGet('progress', book.id).then(function(saved) {
+      if (saved && book.chapters[saved.chapterIndex]) {
+        var idx = Math.min(saved.sentenceIndex, Math.max(0, book.chapters[saved.chapterIndex].sentences.length - 1));
+        jumpTo(saved.chapterIndex, idx);
+      }
+    });
   });
   stopBtn.addEventListener('click', function() {
     if (!book) return;
