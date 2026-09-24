@@ -583,9 +583,9 @@
       <h3>Drop a document to hear it read aloud</h3>
       <p>Works with books, letters, magazines and scanned pages — entirely in this browser tab. Nothing is uploaded anywhere.</p>
       <button class="btn" id="browseBtn" type="button">Choose a file</button>
-      <input type="file" id="fileInput" accept=".pdf,.epub,.docx,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp">
+      <input type="file" id="fileInput" accept=".pdf,.epub,.docx,.pptx,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp">
       <div class="formats">
-        <span>PDF</span>·<span>EPUB</span>·<span>Word (.docx)</span>·<span>Plain text</span>·<span>Scanned photos (JPG/PNG)</span>
+        <span>PDF</span>·<span>EPUB</span>·<span>Word (.docx)</span>·<span>PowerPoint (.pptx)</span>·<span>Excel (.xlsx)</span>·<span>Plain text</span>·<span>Scanned photos (JPG/PNG)</span>
       </div>
       <div class="field" style="justify-content:center; margin-top:14px;">
         <label for="ocrLangSelect">Scanned-page language</label>
@@ -643,7 +643,7 @@
     </div>
     <div class="modal-body">
       <h3>1. Open a document</h3>
-      <p>Drop a file onto the panel, or tap "Choose a file". Lectern reads PDF, EPUB, Word (.docx), plain text, and photos or scans (JPG/PNG etc.) — scanned pages are recognised automatically with on-device OCR, which can take a little longer. If a scanned page or photo is in Hindi, Tamil, Bengali or another Indian language, pick it from the "Scanned-page language" dropdown first — OCR needs to know the script to read it correctly. PDFs, EPUBs, Word files and plain text with a proper text layer work in any language automatically, no picker needed.</p>
+      <p>Drop a file onto the panel, or tap "Choose a file". Lectern reads PDF, EPUB, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), plain text, and photos or scans (JPG/PNG etc.) — scanned pages are recognised automatically with on-device OCR, which can take a little longer. PowerPoint reads each slide's text as a chapter; Excel reads each sheet row by row, since spreadsheets aren't really prose. Older .ppt/.xls/.doc files aren't supported — re-save them in the modern format first. If a scanned page or photo is in Hindi, Tamil, Bengali or another Indian language, pick it from the "Scanned-page language" dropdown first — OCR needs to know the script to read it correctly. PDFs, EPUBs, Word files and plain text with a proper text layer work in any language automatically, no picker needed.</p>
 
       <h3>2. Listen</h3>
       <p>Once a book opens, the player bar appears at the bottom. <strong>▶</strong> plays from where the highlighted sentence is; <strong>⏸</strong> pauses and keeps your place; <strong>⏹</strong> stops and jumps back to the start of the current chapter. The <strong>◀ ▶</strong> arrows move a sentence at a time, and <strong>⏮ ⏭</strong> jump a whole chapter. Tap anywhere on the thin progress bar to skip to that point in the book.</p>
@@ -721,6 +721,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
 (function(){
@@ -1235,14 +1236,114 @@
     });
   }
 
+  function parsePPTX(file, onProgress) {
+    onProgress('Unpacking PowerPoint file');
+    return file.arrayBuffer().then(function(buf) {
+      return JSZip.loadAsync(buf);
+    }).then(function(zip) {
+      var slideFiles = [];
+      zip.forEach(function(relPath) {
+        var m = relPath.match(/^ppt\/slides\/slide(\d+)\.xml$/);
+        if (m) slideFiles.push({ num: parseInt(m[1], 10), path: relPath });
+      });
+      slideFiles.sort(function(a, b) { return a.num - b.num; });
+      var chapters = [];
+      var i = 0;
+      function next() {
+        if (i >= slideFiles.length) return Promise.resolve();
+        var sf = slideFiles[i];
+        onProgress('Reading slide ' + (i + 1) + ' of ' + slideFiles.length);
+        return zip.file(sf.path).async('text').then(function(xml) {
+          var doc = new DOMParser().parseFromString(xml, 'application/xml');
+          var runs = doc.getElementsByTagName('a:t');
+          var texts = Array.prototype.map.call(runs, function(n) { return n.textContent; }).filter(Boolean);
+          var text = texts.join('. ').replace(/\s+/g, ' ').trim();
+          var title = 'Slide ' + sf.num + (texts.length ? ': ' + texts[0].slice(0, 40) : '');
+          chapters.push({ title: title, text: text || '(No readable text on this slide)' });
+          i++;
+          return next();
+        });
+      }
+      return next().then(function() {
+        return { title: file.name.replace(/\.pptx$/i, ''), chapters: chapters.length ? chapters : [{ title: 'Presentation', text: '(No readable text found)' }] };
+      });
+    });
+  }
+
+  function parseXLSX(file, onProgress) {
+    onProgress('Unpacking Excel file');
+    return file.arrayBuffer().then(function(buf) {
+      return JSZip.loadAsync(buf);
+    }).then(function(zip) {
+      var sharedStrings = [];
+      var sharedFile = zip.file('xl/sharedStrings.xml');
+      var sharedPromise = sharedFile ? sharedFile.async('text').then(function(xml) {
+        var doc = new DOMParser().parseFromString(xml, 'application/xml');
+        var siNodes = doc.getElementsByTagName('si');
+        for (var i = 0; i < siNodes.length; i++) {
+          var tNodes = siNodes[i].getElementsByTagName('t');
+          sharedStrings.push(Array.prototype.map.call(tNodes, function(n) { return n.textContent; }).join(''));
+        }
+      }) : Promise.resolve();
+
+      return sharedPromise.then(function() {
+        return zip.file('xl/workbook.xml').async('text');
+      }).then(function(wbXml) {
+        var wbDoc = new DOMParser().parseFromString(wbXml, 'application/xml');
+        var sheetNodes = wbDoc.getElementsByTagName('sheet');
+        var sheets = Array.prototype.map.call(sheetNodes, function(s, idx) {
+          return s.getAttribute('name') || ('Sheet ' + (idx + 1));
+        });
+        var chapters = [];
+        var i = 0;
+        function next() {
+          if (i >= sheets.length) return Promise.resolve();
+          var f = zip.file('xl/worksheets/sheet' + (i + 1) + '.xml');
+          if (!f) { i++; return next(); }
+          onProgress('Reading ' + sheets[i]);
+          return f.async('text').then(function(xml) {
+            var doc = new DOMParser().parseFromString(xml, 'application/xml');
+            var rows = doc.getElementsByTagName('row');
+            var lines = [];
+            for (var r = 0; r < rows.length; r++) {
+              var cells = rows[r].getElementsByTagName('c');
+              var vals = [];
+              for (var c = 0; c < cells.length; c++) {
+                var cell = cells[c];
+                var t = cell.getAttribute('t');
+                var vNode = cell.getElementsByTagName('v')[0];
+                var isNode = cell.getElementsByTagName('is')[0];
+                var val = '';
+                if (t === 's' && vNode) val = sharedStrings[parseInt(vNode.textContent, 10)] || '';
+                else if (isNode) val = isNode.textContent;
+                else if (vNode) val = vNode.textContent;
+                if (val) vals.push(val);
+              }
+              if (vals.length) lines.push('Row ' + (rows[r].getAttribute('r') || (r + 1)) + ': ' + vals.join(', '));
+            }
+            chapters.push({ title: sheets[i], text: lines.join('. ') || '(This sheet has no readable text)' });
+            i++;
+            return next();
+          });
+        }
+        return next().then(function() {
+          return { title: file.name.replace(/\.xlsx$/i, ''), chapters: chapters.length ? chapters : [{ title: 'Workbook', text: '(No readable text found)' }] };
+        });
+      });
+    });
+  }
+
   function parseFile(file, onProgress, ocrLang) {
     var ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'pdf') return parsePDF(file, onProgress, ocrLang);
     if (ext === 'epub') return parseEPUB(file, onProgress);
     if (ext === 'docx') return parseDOCX(file, onProgress);
+    if (ext === 'pptx') return parsePPTX(file, onProgress);
+    if (ext === 'xlsx') return parseXLSX(file, onProgress);
     if (ext === 'txt') return parseTXT(file, onProgress);
     if (['png','jpg','jpeg','gif','bmp','webp'].indexOf(ext) !== -1) return parseImage(file, onProgress, ocrLang);
-    return Promise.reject(new Error('Unsupported file type: .' + ext + '. Try PDF, EPUB, DOCX, TXT, or a photo of the page.'));
+    if (['ppt','xls','doc'].indexOf(ext) !== -1) return Promise.reject(new Error('The old .' + ext + ' format isn\'t supported — only the modern Office format (.pptx/.xlsx/.docx). Try re-saving it in that format first.'));
+    return Promise.reject(new Error('Unsupported file type: .' + ext + '. Try PDF, EPUB, Word, PowerPoint, Excel, TXT, or a photo of the page.'));
   }
 
   // ---------------- Rendering ----------------
