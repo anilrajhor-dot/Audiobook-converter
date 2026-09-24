@@ -618,8 +618,7 @@
       <div class="resume-banner" id="resumeBanner">
         <span id="resumeText"></span>
         <div class="actions">
-          <button id="resumeBtn" class="primary" type="button">Resume</button>
-          <button id="restartBtn" type="button">Start over</button>
+          <button id="restartBtn" type="button">Start over instead</button>
         </div>
       </div>
       <div class="book-meta">
@@ -749,7 +748,6 @@
   var shelfCount = document.getElementById('shelfCount');
   var resumeBanner = document.getElementById('resumeBanner');
   var resumeText = document.getElementById('resumeText');
-  var resumeBtn = document.getElementById('resumeBtn');
   var restartBtn = document.getElementById('restartBtn');
 
   var shelfActions = document.getElementById('shelfActions');
@@ -793,7 +791,6 @@
 
   // ---------------- State ----------------
   var book = null;          // {id, title, chapters:[{title, text, sentences:[]}]}
-  var pendingResume = null; // {chapterIndex, sentenceIndex}
   var state = { chapterIndex: 0, sentenceIndex: 0, playing: false, rate: 1, pitch: 1, voiceURI: null };
 
   // ---------------- Helpers ----------------
@@ -810,7 +807,20 @@
     var matches = text.match(/[^.!?।॥]+[.!?।॥]+(\s+|$)|[^.!?।॥]+$/g);
     return (matches || [text]).map(function(s){ return s.trim(); }).filter(Boolean);
   }
-  function docId(file) { return file.name + '_' + file.size + '_' + file.lastModified; }
+  function fnv1aHash(str) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h.toString(16);
+  }
+  function contentFingerprint(parsed) {
+    var words = parsed.chapters.reduce(function(sum, c) { return sum + (c.text.match(/\S+/g) || []).length; }, 0);
+    var sample = ((parsed.chapters[0] && parsed.chapters[0].text) || '').slice(0, 200);
+    var key = (parsed.title || '') + '|' + parsed.chapters.length + '|' + words + '|' + sample;
+    return 'b' + fnv1aHash(key);
+  }
   function ocrLangCode(lang) {
     if (!lang || lang === 'eng') return 'eng';
     return lang + '+eng';
@@ -1499,11 +1509,11 @@
     if (isNewUpload) persistBookContent();
 
     dbGet('progress', id).then(function(saved) {
-      if (saved && (saved.chapterIndex > 0 || saved.sentenceIndex > 0)) {
-        pendingResume = saved;
-        resumeText.textContent = 'You left off in "' + (book.chapters[saved.chapterIndex] || {}).title + '".';
+      if (saved && (saved.chapterIndex > 0 || saved.sentenceIndex > 0) && book.chapters[saved.chapterIndex]) {
+        state.chapterIndex = saved.chapterIndex;
+        state.sentenceIndex = Math.min(saved.sentenceIndex, Math.max(0, book.chapters[saved.chapterIndex].sentences.length - 1));
+        resumeText.textContent = 'Resumed where you left off — "' + book.chapters[saved.chapterIndex].title + '".';
         resumeBanner.classList.add('visible');
-        state.chapterIndex = 0; state.sentenceIndex = 0;
       } else {
         resumeBanner.classList.remove('visible');
         state.chapterIndex = 0; state.sentenceIndex = 0;
@@ -1522,7 +1532,6 @@
     exportPanel.style.display = 'none';
     player.classList.remove('visible');
     resumeBanner.classList.remove('visible');
-    pendingResume = null;
     setStatus(null);
     downloadAudioLink.style.display = 'none';
     setExportStatus(null);
@@ -1530,27 +1539,22 @@
     dropzone.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
-  resumeBtn.addEventListener('click', function() {
-    if (pendingResume) {
-      state.chapterIndex = pendingResume.chapterIndex;
-      state.sentenceIndex = pendingResume.sentenceIndex;
-      renderChapter();
-      updateProgressUI();
-    }
-    resumeBanner.classList.remove('visible');
-    pendingResume = null;
-  });
   restartBtn.addEventListener('click', function() {
+    if (!book) return;
+    stopPlayback();
+    state.chapterIndex = 0;
+    state.sentenceIndex = 0;
+    renderChapter();
+    updateProgressUI();
     resumeBanner.classList.remove('visible');
-    pendingResume = null;
   });
 
   function handleFile(file) {
     if (!file) return;
     setStatus('Opening ' + file.name + '…');
-    var id = docId(file);
     parseFile(file, setStatus, ocrLangSelect.value).then(function(parsed) {
       setStatus(null);
+      var id = contentFingerprint(parsed);
       openBook(parsed, id, true);
     }).catch(function(err) {
       console.error(err);
@@ -1600,6 +1604,13 @@
     window.addEventListener('orientationchange', syncPlayerSpacing);
   }
   syncPlayerSpacing();
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden && book) persistProgress();
+  });
+  window.addEventListener('pagehide', function() {
+    if (book) persistProgress();
+  });
 
   renderShelf();
 })();
