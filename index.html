@@ -675,12 +675,12 @@
   <div class="player-inner">
     <div class="player-row1">
       <div class="transport">
-        <button id="stopBtn" title="Stop and reset to start of chapter">⏹</button>
-        <button id="prevChapterBtn" title="Previous chapter">⏮</button>
-        <button id="prevSentenceBtn" title="Back a sentence">◀</button>
-        <button id="playPauseBtn" class="play-pause" title="Play">▶</button>
-        <button id="nextSentenceBtn" title="Forward a sentence">▶</button>
-        <button id="nextChapterBtn" title="Next chapter">⏭</button>
+        <button id="stopBtn" title="Stop and reset to start of chapter"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="10" height="10"/></svg></button>
+        <button id="prevChapterBtn" title="Previous chapter"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="2" height="12"/><path d="M14 2L6 8l8 6z"/></svg></button>
+        <button id="prevSentenceBtn" title="Back a sentence"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2L4 8l8 6z"/></svg></button>
+        <button id="playPauseBtn" class="play-pause" title="Play"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg></button>
+        <button id="nextSentenceBtn" title="Forward a sentence"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M4 2l8 6-8 6z"/></svg></button>
+        <button id="nextChapterBtn" title="Next chapter"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M2 2l8 6-8 6z"/><rect x="12" y="2" width="2" height="12"/></svg></button>
       </div>
       <div class="track-info">
         <div class="now" id="nowTitle">Nothing playing</div>
@@ -1289,8 +1289,10 @@
     persistProgress();
   }
 
+  var PLAY_ICON = '<svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg>';
+  var PAUSE_ICON = '<svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>';
   function updatePlayButton() {
-    playPauseBtn.textContent = state.playing ? '⏸' : '▶';
+    playPauseBtn.innerHTML = state.playing ? PAUSE_ICON : PLAY_ICON;
     playPauseBtn.title = state.playing ? 'Pause' : 'Play';
   }
 
