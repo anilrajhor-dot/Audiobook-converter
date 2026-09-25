@@ -370,6 +370,8 @@
   .track-info { flex: 1; min-width: 0; }
   .track-info .now { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .track-info .sub { font-size: 13.5px; color: var(--text-ink-muted); }
+  .track-info .sub.engine-active { color: var(--accent); font-weight: 600; }
+  .track-info .sub.engine-warning { color: #d98080; font-weight: 600; }
 
   .progress-track {
     height: 4px;
@@ -753,7 +755,7 @@
       <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
 
       <h3>6. My Voice — read it in your own voice, no API required</h3>
-      <p>The "🎙️ My Voice" panel lets you record or upload a sample of your own voice, entirely on this device, with a required consent checkbox. This creates a local voice profile. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel) — without one, Lectern tells you plainly and reads with the Browser Voice instead, never a fake substitute.</p>
+      <p>The "🎙️ My Voice" panel lets you record or upload a sample of your own voice, entirely on this device, with a required consent checkbox. This creates a local voice profile. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel) — without one, playback stops and Lectern tells you plainly rather than quietly substituting the browser voice. Switch "Voice source" to Browser Voice any time you want to keep listening without a connected engine.</p>
 
       <h3>7. Optional Cloud Voice Studio (paid, external)</h3>
       <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Optional Cloud Voice Studio", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it there, so the book can be read in your own voice via their cloud service. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
@@ -776,7 +778,7 @@
       <button class="modal-close" id="voiceModalCloseBtn" type="button" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
-      <p class="helptext" style="margin-top:0;">Record about 1–2 minutes of clear speech, or upload a sample — this stays on your device.</p>
+      <p class="helptext" style="margin-top:0;">Record about 30–60 seconds of clear speech, or upload a sample — this stays on your device.</p>
 
       <div class="rec-method-choice">
         <button type="button" id="chooseRecordBtn" class="selected">🎙️ Record</button>
@@ -1138,7 +1140,7 @@
   }
   var LocalVoiceEngineAdapter = {
     // GET {endpoint}/health -> 200 OK means a local engine is connected and reachable.
-    isAvailable: function() {
+    checkConnection: function() {
       var endpoint = localEngineEndpoint();
       if (!endpoint) return Promise.resolve(false);
       return withTimeout(fetch(endpoint.replace(/\/$/, '') + '/health'), 2500)
@@ -1148,8 +1150,8 @@
     // POST {endpoint}/voices  (multipart: name, language, sample) -> { voice_id }
     createVoice: function(sampleBlob, options) {
       var endpoint = localEngineEndpoint();
-      return this.isAvailable().then(function(available) {
-        if (!available) return { ok: false, reason: 'engine_unavailable' };
+      return this.checkConnection().then(function(connected) {
+        if (!connected) return { ok: false, reason: 'engine_unavailable' };
         var form = new FormData();
         form.append('name', (options && options.name) || 'My Voice');
         form.append('language', (options && options.language) || 'en');
@@ -1161,15 +1163,15 @@
           }).catch(function(e) { return { ok: false, reason: 'engine_error', error: e.message }; });
       });
     },
-    // POST {endpoint}/generate { text, voice_id } -> raw audio bytes
-    generateSpeech: function(text, voiceProfile) {
+    // POST {endpoint}/generate { text, voice_id, language, settings } -> raw audio bytes
+    generateSpeech: function(text, voiceId, language, settings) {
       var endpoint = localEngineEndpoint();
-      return this.isAvailable().then(function(available) {
-        if (!available) return { ok: false, reason: 'engine_unavailable' };
+      return this.checkConnection().then(function(connected) {
+        if (!connected) return { ok: false, reason: 'engine_unavailable' };
         return fetch(endpoint.replace(/\/$/, '') + '/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text, voice_id: voiceProfile && voiceProfile.engineVoiceId })
+          body: JSON.stringify({ text: text, voice_id: voiceId, language: language || 'en', settings: settings || {} })
         }).then(function(res) {
           if (!res.ok) return { ok: false, reason: 'engine_error' };
           return res.arrayBuffer().then(function(buf) { return { ok: true, audio: buf }; });
@@ -1177,24 +1179,22 @@
       });
     },
     // DELETE {endpoint}/voices/{id} — best-effort; local deletion happens regardless.
-    deleteVoice: function(voiceProfile) {
+    deleteVoice: function(voiceId) {
       var endpoint = localEngineEndpoint();
-      if (!voiceProfile || !voiceProfile.engineVoiceId) return Promise.resolve({ ok: true });
-      return this.isAvailable().then(function(available) {
-        if (!available) return { ok: true };
-        return fetch(endpoint.replace(/\/$/, '') + '/voices/' + voiceProfile.engineVoiceId, { method: 'DELETE' })
+      if (!voiceId) return Promise.resolve({ ok: true });
+      return this.checkConnection().then(function(connected) {
+        if (!connected) return { ok: true };
+        return fetch(endpoint.replace(/\/$/, '') + '/voices/' + voiceId, { method: 'DELETE' })
           .then(function() { return { ok: true }; }).catch(function(e) { return { ok: false, error: e.message }; });
       });
-    },
-    testVoice: function(text, voiceProfile) { return this.generateSpeech(text, voiceProfile); }
+    }
   };
   var VoiceEngine = {
     adapter: LocalVoiceEngineAdapter,
+    checkConnection: function() { return this.adapter.checkConnection(); },
     createVoice: function(sample, options) { return this.adapter.createVoice(sample, options); },
-    generateSpeech: function(text, voiceProfile, options) { return this.adapter.generateSpeech(text, voiceProfile, options); },
-    deleteVoice: function(voiceProfile) { return this.adapter.deleteVoice(voiceProfile); },
-    testVoice: function(text, voiceProfile) { return this.adapter.testVoice(text, voiceProfile); },
-    isAvailable: function() { return this.adapter.isAvailable(); }
+    generateSpeech: function(text, voiceId, language, settings) { return this.adapter.generateSpeech(text, voiceId, language, settings); },
+    deleteVoice: function(voiceId) { return this.adapter.deleteVoice(voiceId); }
   };
 
   function persistBookContent() {
@@ -1520,13 +1520,13 @@
   });
   testEngineBtn.addEventListener('click', function() {
     engineTestResult.textContent = 'Testing…';
-    VoiceEngine.isAvailable().then(function(ok) {
+    VoiceEngine.checkConnection().then(function(ok) {
       engineTestResult.textContent = ok ? 'Connected ✓' : 'Not reachable';
       refreshEngineStatus();
     });
   });
   function refreshEngineStatus() {
-    VoiceEngine.isAvailable().then(function(ok) {
+    VoiceEngine.checkConnection().then(function(ok) {
       voiceEngineStatusLine.textContent = ok ? '🎙️ My Voice — Local AI engine connected' : '🔊 Browser Voice — local engine not connected';
       voiceEngineStatusLine.className = 'engine-badge ' + (ok ? 'engine-badge-on' : 'engine-badge-off');
     });
@@ -1694,8 +1694,8 @@
   function renderQualityMessages(duration, rms, silenceRatio) {
     qualityMessagesEl.innerHTML = '';
     var any = false;
-    if (duration < 15) { addQualityMsg('error', 'Voice sample is too short — aim for at least 20–30 seconds, ideally 1–2 minutes.'); any = true; }
-    else if (duration < 45) { addQualityMsg('warn', 'A bit short — 1–2 minutes of speech usually gives a better result.'); any = true; }
+    if (duration < 15) { addQualityMsg('error', 'Voice sample is too short — aim for at least 30 seconds, ideally 30–60 seconds.'); any = true; }
+    else if (duration < 30) { addQualityMsg('warn', 'A bit short — 30–60 seconds of speech usually gives a better result.'); any = true; }
     if (rms < 0.02) { addQualityMsg('warn', 'Voice sample appears to be very quiet. Try recording closer to the mic, in a quiet room.'); any = true; }
     if (silenceRatio > 0.6) { addQualityMsg('warn', 'A lot of this sample is silence — try to speak continuously throughout.'); any = true; }
     if (!any) addQualityMsg('ok', 'Voice sample is ready.');
@@ -1742,7 +1742,7 @@
     if (!confirm('Delete ALL saved voices and samples from this device? This cannot be undone.')) return;
     dbGetAll('voiceProfiles').then(function(list) {
       return Promise.all(list.map(function(p) {
-        return VoiceEngine.deleteVoice(p).finally(function() {
+        return VoiceEngine.deleteVoice(p.engineVoiceId).finally(function() {
           return Promise.all([dbDelete('voiceProfiles', p.voiceId), dbDelete('voiceSamples', p.voiceId)]);
         });
       }));
@@ -1779,7 +1779,7 @@
         profile.status = 'ready';
         return dbPut('voiceProfiles', profile);
       }
-      setVoiceModalStatus('Saved. Voice cloning engine is not installed — Browser Voice will be used for this voice until one is connected.');
+      setVoiceModalStatus('Saved. My Voice engine is not connected — connect it above to actually generate speech in this voice.');
       return null;
     }).then(function() {
       renderMyVoices();
@@ -1840,7 +1840,7 @@
   }
   function testVoiceProfile(profile, statusEl) {
     statusEl.textContent = 'Testing…';
-    VoiceEngine.testVoice('Hello. This is a test of my personal voice.', profile).then(function(result) {
+    VoiceEngine.generateSpeech('Hello. This is a test of my personal voice.', profile.engineVoiceId, profile.language, {}).then(function(result) {
       if (result && result.ok) {
         statusEl.textContent = 'Playing…';
         var blob = new Blob([result.audio], { type: 'audio/wav' });
@@ -1848,7 +1848,7 @@
         a.onended = function() { statusEl.textContent = ''; };
         a.play();
       } else {
-        statusEl.textContent = 'Voice cloning engine is not installed. Browser voice is available instead.';
+        statusEl.textContent = 'My Voice engine is not connected. Connect the local engine to use your cloned voice.';
       }
     });
   }
@@ -1862,7 +1862,7 @@
   }
   function deleteVoiceProfile(profile) {
     if (!confirm('Delete "' + profile.voiceName + '"? This removes the saved sample and profile from this device.')) return;
-    VoiceEngine.deleteVoice(profile).finally(function() {
+    VoiceEngine.deleteVoice(profile.engineVoiceId).finally(function() {
       Promise.all([dbDelete('voiceProfiles', profile.voiceId), dbDelete('voiceSamples', profile.voiceId)]).then(function() {
         if (state.voiceSource === profile.voiceId) {
           voiceSourceSelect.value = 'browser';
@@ -1873,12 +1873,14 @@
     });
   }
 
+  var ENGINE_NOT_CONNECTED_MSG = 'My Voice engine is not connected. Connect the local engine to use your cloned voice.';
   function updatePlaybackEngineBadge() {
-    if (state.voiceSource === 'browser') { playbackEngineBadge.textContent = ''; return; }
+    if (state.voiceSource === 'browser') { playbackEngineBadge.textContent = '🔊 Browser Voice'; playbackEngineBadge.className = 'sub'; return; }
     var profile = voiceProfilesById[state.voiceSource];
-    if (!profile) { playbackEngineBadge.textContent = ''; return; }
-    VoiceEngine.isAvailable().then(function(ok) {
-      playbackEngineBadge.textContent = ok ? '🎙️ My Voice — Local AI' : 'Voice cloning engine is not installed. Browser voice is available instead.';
+    if (!profile) { playbackEngineBadge.textContent = ''; playbackEngineBadge.className = 'sub'; return; }
+    VoiceEngine.checkConnection().then(function(ok) {
+      playbackEngineBadge.textContent = ok ? '🎙️ My Voice — Local AI' : ENGINE_NOT_CONNECTED_MSG;
+      playbackEngineBadge.className = 'sub ' + (ok ? 'engine-active' : 'engine-warning');
     });
   }
   voiceSourceSelect.addEventListener('change', function() {
@@ -1902,25 +1904,30 @@
     utter.onerror = sentenceAdvance;
     speechSynthesis.speak(utter);
   }
+  // My Voice never silently substitutes another voice: if the local engine isn't
+  // connected, playback halts here with a clear message rather than falling back.
+  function haltForEngineUnavailable() {
+    playbackEngineBadge.textContent = ENGINE_NOT_CONNECTED_MSG;
+    playbackEngineBadge.className = 'sub engine-warning';
+    nowSub.textContent = 'Not playing — switch to Browser Voice, or connect the local engine.';
+    stopPlayback();
+  }
   function speakSentenceLocal(text) {
     var profile = voiceProfilesById[state.voiceSource];
-    if (!profile) { speakSentenceBrowser(text); return; }
+    if (!profile) { haltForEngineUnavailable(); return; }
     nowSub.textContent = 'Generating voice…';
-    VoiceEngine.generateSpeech(text, profile).then(function(result) {
+    VoiceEngine.generateSpeech(text, profile.engineVoiceId, profile.language, { rate: state.rate, pitch: state.pitch }).then(function(result) {
       if (!state.playing) return;
-      if (!result || !result.ok) {
-        playbackEngineBadge.textContent = 'Voice cloning engine is not installed. Browser voice is available instead.';
-        speakSentenceBrowser(text);
-        return;
-      }
+      if (!result || !result.ok) { haltForEngineUnavailable(); return; }
       playbackEngineBadge.textContent = '🎙️ My Voice — Local AI';
+      playbackEngineBadge.className = 'sub engine-active';
       var blob = new Blob([result.audio], { type: 'audio/wav' });
       var url = URL.createObjectURL(blob);
       localAudioEl.src = url;
       localAudioEl.playbackRate = state.rate;
       localAudioEl.onended = function() { URL.revokeObjectURL(url); sentenceAdvance(); };
-      localAudioEl.onerror = function() { URL.revokeObjectURL(url); sentenceAdvance(); };
-      localAudioEl.play().catch(function() { sentenceAdvance(); });
+      localAudioEl.onerror = function() { URL.revokeObjectURL(url); haltForEngineUnavailable(); };
+      localAudioEl.play().catch(function() { haltForEngineUnavailable(); });
     });
   }
   function sentenceAdvance() {
