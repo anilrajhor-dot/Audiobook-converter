@@ -1882,7 +1882,7 @@
   });
 
   function voiceStatusLabel(profile) {
-    return profile.status === 'ready' ? 'Ready — local engine cloned this voice' : 'Sample saved — engine not installed yet';
+    return profile.status === 'ready' ? 'Ready — cloned by the local engine' : 'Sample saved — not yet cloned';
   }
   function renderMyVoices() {
     dbGetAll('voiceProfiles').then(function(list) {
@@ -1901,16 +1901,22 @@
         var item = document.createElement('div');
         item.className = 'voice-item';
         var dateStr = new Date(p.createdAt).toLocaleDateString();
+        var primaryActionBtn = p.engineVoiceId
+          ? '<button class="chip-btn" data-act="test">▶ Test</button>'
+          : '<button class="chip-btn" data-act="clone">🔗 Clone Voice</button>';
         item.innerHTML =
           '<div class="voice-name"><span class="voice-status-dot ' + (p.status === 'ready' ? 'ready' : 'pending') + '"></span>' + escapeHtml(p.voiceName) + '</div>' +
           '<div class="voice-meta">Created ' + dateStr + ' · ' + escapeHtml(p.language.toUpperCase()) + ' · ' + voiceStatusLabel(p) + '</div>' +
           '<div class="voice-actions">' +
-          '<button class="chip-btn" data-act="test">▶ Test</button>' +
+          primaryActionBtn +
           '<button class="chip-btn" data-act="use">Use</button>' +
           '<button class="chip-btn" data-act="rename">Rename</button>' +
           '<button class="chip-btn" data-act="delete">Delete</button>' +
           '</div><div class="voice-test-status" style="font-size:14px; color:var(--text-muted); margin-top:4px;"></div>';
-        item.querySelector('[data-act="test"]').addEventListener('click', function() { testVoiceProfile(p, item.querySelector('.voice-test-status')); });
+        var testBtnEl = item.querySelector('[data-act="test"]');
+        if (testBtnEl) testBtnEl.addEventListener('click', function() { testVoiceProfile(p, item.querySelector('.voice-test-status')); });
+        var cloneBtnEl = item.querySelector('[data-act="clone"]');
+        if (cloneBtnEl) cloneBtnEl.addEventListener('click', function() { attemptCloneVoice(p, item.querySelector('.voice-test-status')); });
         item.querySelector('[data-act="use"]').addEventListener('click', function() {
           voiceSourceSelect.value = p.voiceId;
           voiceSourceSelect.dispatchEvent(new Event('change'));
@@ -1926,9 +1932,28 @@
         voiceSourceSelect.value = prevSelected;
       }
       refreshEngineStatus();
+      updatePlaybackEngineBadge();
+    });
+  }
+  function attemptCloneVoice(profile, statusEl) {
+    statusEl.textContent = 'Connecting to local engine…';
+    dbGet('voiceSamples', profile.voiceId).then(function(sampleRec) {
+      if (!sampleRec || !sampleRec.blob) { statusEl.textContent = 'Sample missing — please re-record this voice.'; return; }
+      return VoiceEngine.createVoice(sampleRec.blob, { name: profile.voiceName, language: profile.language }).then(function(result) {
+        if (result && result.ok) {
+          profile.engineVoiceId = result.engineVoiceId;
+          profile.status = 'ready';
+          return dbPut('voiceProfiles', profile).then(function() {
+            statusEl.textContent = 'Cloned ✓ — this voice is ready to use.';
+            renderMyVoices();
+          });
+        }
+        statusEl.textContent = ENGINE_NOT_CONNECTED_MSG;
+      });
     });
   }
   function testVoiceProfile(profile, statusEl) {
+    if (!profile.engineVoiceId) { statusEl.textContent = VOICE_NOT_CLONED_MSG; return; }
     statusEl.textContent = 'Testing…';
     VoiceEngine.generateSpeech('Hello. This is a test of my personal voice.', profile.engineVoiceId, profile.language, {}).then(function(result) {
       if (result && result.ok) {
@@ -1938,7 +1963,7 @@
         a.onended = function() { statusEl.textContent = ''; };
         a.play();
       } else {
-        statusEl.textContent = 'My Voice engine is not connected. Connect the local engine to use your cloned voice.';
+        statusEl.textContent = ENGINE_NOT_CONNECTED_MSG;
       }
     });
   }
@@ -1963,11 +1988,17 @@
     });
   }
 
-  var ENGINE_NOT_CONNECTED_MSG = 'My Voice engine is not connected. Connect the local engine to use your cloned voice.';
+  var ENGINE_NOT_CONNECTED_MSG = 'My Voice engine is not connected. Connect the local AI voice engine to use your cloned voice.';
+  var VOICE_NOT_CLONED_MSG = 'This voice has not been cloned by the local engine yet.';
   function updatePlaybackEngineBadge() {
     if (state.voiceSource === 'browser') { playbackEngineBadge.textContent = '🔊 Browser Voice'; playbackEngineBadge.className = 'sub'; return; }
     var profile = voiceProfilesById[state.voiceSource];
     if (!profile) { playbackEngineBadge.textContent = ''; playbackEngineBadge.className = 'sub'; return; }
+    if (!profile.engineVoiceId) {
+      playbackEngineBadge.textContent = VOICE_NOT_CLONED_MSG;
+      playbackEngineBadge.className = 'sub engine-warning';
+      return;
+    }
     VoiceEngine.checkConnection().then(function(ok) {
       playbackEngineBadge.textContent = ok ? '🎙️ My Voice — Local AI' : ENGINE_NOT_CONNECTED_MSG;
       playbackEngineBadge.className = 'sub ' + (ok ? 'engine-active' : 'engine-warning');
@@ -1983,6 +2014,11 @@
   });
 
   var localAudioEl = new Audio();
+  var localAudioUrl = null;        // currently-loaded object URL, so it can always be revoked
+  var localSpeechToken = 0;        // bumped on every stop/seek so stale generateSpeech responses are ignored
+  function revokeLocalAudioUrl() {
+    if (localAudioUrl) { URL.revokeObjectURL(localAudioUrl); localAudioUrl = null; }
+  }
   function speakSentenceBrowser(text) {
     var utter = new SpeechSynthesisUtterance(text);
     var voices = speechSynthesis.getVoices();
@@ -1995,29 +2031,46 @@
     speechSynthesis.speak(utter);
   }
   // My Voice never silently substitutes another voice: if the local engine isn't
-  // connected, playback halts here with a clear message rather than falling back.
-  function haltForEngineUnavailable() {
-    playbackEngineBadge.textContent = ENGINE_NOT_CONNECTED_MSG;
+  // connected (or this voice was never actually cloned), playback halts here with
+  // a clear message rather than falling back to Browser Voice.
+  function haltPlayback(message) {
+    playbackEngineBadge.textContent = message;
     playbackEngineBadge.className = 'sub engine-warning';
-    nowSub.textContent = 'Not playing — switch to Browser Voice, or connect the local engine.';
+    nowSub.textContent = 'Not playing — switch to Browser Voice, or fix this in the My Voice panel.';
+    revokeLocalAudioUrl();
     stopPlayback();
   }
   function speakSentenceLocal(text) {
     var profile = voiceProfilesById[state.voiceSource];
-    if (!profile) { haltForEngineUnavailable(); return; }
+    if (!profile) { haltPlayback(ENGINE_NOT_CONNECTED_MSG); return; }
+    if (!profile.engineVoiceId) { haltPlayback(VOICE_NOT_CLONED_MSG); return; }
     nowSub.textContent = 'Generating voice…';
+    var myToken = ++localSpeechToken;
     VoiceEngine.generateSpeech(text, profile.engineVoiceId, profile.language, { rate: state.rate, pitch: state.pitch }).then(function(result) {
-      if (!state.playing) return;
-      if (!result || !result.ok) { haltForEngineUnavailable(); return; }
+      if (!state.playing || myToken !== localSpeechToken) return; // superseded by a later seek/stop — ignore
+      if (!result || !result.ok) { haltPlayback(ENGINE_NOT_CONNECTED_MSG); return; }
       playbackEngineBadge.textContent = '🎙️ My Voice — Local AI';
       playbackEngineBadge.className = 'sub engine-active';
+      revokeLocalAudioUrl();
       var blob = new Blob([result.audio], { type: 'audio/wav' });
       var url = URL.createObjectURL(blob);
+      localAudioUrl = url;
       localAudioEl.src = url;
       localAudioEl.playbackRate = state.rate;
-      localAudioEl.onended = function() { URL.revokeObjectURL(url); sentenceAdvance(); };
-      localAudioEl.onerror = function() { URL.revokeObjectURL(url); haltForEngineUnavailable(); };
-      localAudioEl.play().catch(function() { haltForEngineUnavailable(); });
+      localAudioEl.onended = function() {
+        if (myToken !== localSpeechToken) return;
+        revokeLocalAudioUrl();
+        sentenceAdvance();
+      };
+      localAudioEl.onerror = function() {
+        if (myToken !== localSpeechToken) return;
+        revokeLocalAudioUrl();
+        haltPlayback(ENGINE_NOT_CONNECTED_MSG);
+      };
+      localAudioEl.play().catch(function() {
+        if (myToken !== localSpeechToken) return;
+        haltPlayback(ENGINE_NOT_CONNECTED_MSG);
+      });
     });
   }
   function sentenceAdvance() {
@@ -2414,6 +2467,7 @@
     }
     speechSynthesis.cancel();
     localAudioEl.pause();
+    localSpeechToken++; // invalidate any in-flight generateSpeech() from before this seek
     // Chrome/Safari can silently drop an utterance spoken in the same tick as cancel() — a short defer avoids that.
     setTimeout(function() {
       if (state.playing) playNextSentence();
@@ -2450,12 +2504,15 @@
     state.playing = false;
     speechSynthesis.cancel();
     localAudioEl.pause();
+    localSpeechToken++;
     updatePlayButton();
   }
   function stopPlayback() {
     state.playing = false;
     speechSynthesis.cancel();
     localAudioEl.pause();
+    localSpeechToken++;
+    revokeLocalAudioUrl();
     updatePlayButton();
   }
   function jumpTo(chapterIndex, sentenceIndex) {
