@@ -568,6 +568,22 @@
         </datalist>
         <p class="helptext" style="margin-top:6px;">OpenAI voices: nova, shimmer and alloy read as female; echo, onyx and fable read as male — OpenAI has no dedicated child voice. On ElevenLabs, paste any voice ID from your Voice Library (elevenlabs.io/voice-library), including their female, male and child voices. The most natural options cost more per character — the Quality dropdown lets you trade naturalness for cost.</p>
       </div>
+      <div id="cloneVoiceSection" style="display:none; margin-top:4px; padding-top:12px; border-top:1px dashed var(--border);">
+        <p class="helptext" style="margin-top:0;">Want it read in your own voice? Record a short sample here — ElevenLabs will clone it and Lectern will use it for narration. For best results, record at least a minute of clear, quiet speech.</p>
+        <div class="field">
+          <label for="voiceNameInput">Name it</label>
+          <input type="text" id="voiceNameInput" placeholder="e.g. Anil's voice">
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+          <button class="chip-btn" id="recordVoiceBtn" type="button">🎙️ Record</button>
+          <span id="recordTimer" style="font-size:14px; color:var(--text-muted);"></span>
+          <label class="chip-btn" style="cursor:pointer; margin:0; display:inline-block;">Or upload audio
+            <input type="file" id="voiceSampleUpload" accept="audio/*" style="display:none;">
+          </label>
+        </div>
+        <button class="btn" id="createVoiceBtn" type="button" style="width:100%; justify-content:center; margin-top:10px;" disabled>Clone this voice</button>
+        <div class="status-box" id="cloneStatusBox" style="margin-top:10px;"><div class="spinner"></div><span id="cloneStatusText"></span></div>
+      </div>
       <div class="field">
         <label for="exportScope">Narrate</label>
         <select id="exportScope">
@@ -662,7 +678,7 @@
       <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
 
       <h3>6. Studio narration (optional, paid)</h3>
-      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Studio narration", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
+      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Studio narration", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it, so the book can be read in your own voice. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
 
       <h3>Good to know</h3>
       <ul>
@@ -772,6 +788,14 @@
   var apiModelSelect = document.getElementById('apiModelSelect');
   var apiKeyInput = document.getElementById('apiKeyInput');
   var apiVoiceInput = document.getElementById('apiVoiceInput');
+  var cloneVoiceSection = document.getElementById('cloneVoiceSection');
+  var voiceNameInput = document.getElementById('voiceNameInput');
+  var recordVoiceBtn = document.getElementById('recordVoiceBtn');
+  var recordTimer = document.getElementById('recordTimer');
+  var voiceSampleUpload = document.getElementById('voiceSampleUpload');
+  var createVoiceBtn = document.getElementById('createVoiceBtn');
+  var cloneStatusBox = document.getElementById('cloneStatusBox');
+  var cloneStatusText = document.getElementById('cloneStatusText');
   var exportScopeSel = document.getElementById('exportScope');
   var exportStatusBox = document.getElementById('exportStatusBox');
   var exportStatusText = document.getElementById('exportStatusText');
@@ -1106,6 +1130,100 @@
       return res.arrayBuffer();
     });
   }
+  // ---------------- Voice cloning (ElevenLabs only) ----------------
+  var mediaRecorder = null;
+  var mediaStream = null;
+  var recordedChunks = [];
+  var voiceSampleBlob = null;
+  var recordSeconds = 0;
+  var recordIntervalId = null;
+
+  function setCloneStatus(msg) {
+    if (!msg) { cloneStatusBox.classList.remove('visible'); return; }
+    cloneStatusBox.classList.add('visible');
+    cloneStatusText.textContent = msg;
+  }
+  function formatTimer(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function stopRecordingUI() {
+    recordVoiceBtn.textContent = '🎙️ Record';
+    if (recordIntervalId) { clearInterval(recordIntervalId); recordIntervalId = null; }
+  }
+  recordVoiceBtn.addEventListener('click', function() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCloneStatus('This browser cannot access the microphone.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      mediaStream = stream;
+      recordedChunks = [];
+      recordSeconds = 0;
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = function(e) { if (e.data && e.data.size) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = function() {
+        voiceSampleBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        mediaStream.getTracks().forEach(function(t) { t.stop(); });
+        stopRecordingUI();
+        recordTimer.textContent = 'Recorded ' + formatTimer(recordSeconds) + ' — ready to clone';
+        createVoiceBtn.disabled = false;
+      };
+      mediaRecorder.start();
+      recordVoiceBtn.textContent = '⏹ Stop';
+      recordIntervalId = setInterval(function() {
+        recordSeconds++;
+        recordTimer.textContent = formatTimer(recordSeconds);
+      }, 1000);
+    }).catch(function(err) {
+      console.error(err);
+      setCloneStatus('Microphone access was blocked or unavailable.');
+    });
+  });
+  voiceSampleUpload.addEventListener('change', function() {
+    var f = voiceSampleUpload.files[0];
+    if (!f) return;
+    voiceSampleBlob = f;
+    recordTimer.textContent = 'Using uploaded file: ' + f.name;
+    createVoiceBtn.disabled = false;
+  });
+  createVoiceBtn.addEventListener('click', function() {
+    if (!apiSettings.apiKey) { setCloneStatus('Enter your ElevenLabs API key above first.'); return; }
+    if (!voiceSampleBlob) { setCloneStatus('Record or upload a sample first.'); return; }
+    var name = voiceNameInput.value.trim() || 'My Lectern Voice';
+    var formData = new FormData();
+    formData.append('name', name);
+    formData.append('files', voiceSampleBlob, voiceSampleBlob.name || 'sample.webm');
+    createVoiceBtn.disabled = true;
+    setCloneStatus('Cloning your voice — this can take a minute…');
+    fetch('https://api.elevenlabs.io/v1/voices/add', {
+      method: 'POST',
+      headers: { 'xi-api-key': apiSettings.apiKey },
+      body: formData
+    }).then(function(res) {
+      if (!res.ok) return res.text().then(function(t) { throw new Error('ElevenLabs error ' + res.status + ': ' + t.slice(0, 200)); });
+      return res.json();
+    }).then(function(data) {
+      if (data && data.voice_id) {
+        apiVoiceInput.value = data.voice_id;
+        apiSettings.voice = data.voice_id;
+        saveApiSettings();
+        setCloneStatus('Done — "' + name + '" is now set as your narration voice.');
+      } else {
+        setCloneStatus('Cloning finished but no voice ID came back — check your ElevenLabs account.');
+      }
+      createVoiceBtn.disabled = false;
+    }).catch(function(err) {
+      console.error(err);
+      setCloneStatus('Could not clone the voice: ' + err.message);
+      createVoiceBtn.disabled = false;
+    });
+  });
+
   function generateNarration() {
     if (!book) return;
     if (!apiSettings.apiKey) { setExportStatus('Enter your API key first.'); return; }
@@ -1737,10 +1855,12 @@
   apiKeyInput.value = apiSettings.apiKey;
   apiVoiceInput.value = apiSettings.voice;
   populateModelOptions();
+  cloneVoiceSection.style.display = apiSettings.provider === 'elevenlabs' ? 'block' : 'none';
   apiProviderSel.addEventListener('change', function() {
     apiSettings.provider = apiProviderSel.value;
     apiSettings.model = '';
     populateModelOptions();
+    cloneVoiceSection.style.display = apiSettings.provider === 'elevenlabs' ? 'block' : 'none';
     saveApiSettings();
   });
   apiModelSelect.addEventListener('change', function() { apiSettings.model = apiModelSelect.value; saveApiSettings(); });
