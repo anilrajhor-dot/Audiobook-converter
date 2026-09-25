@@ -459,6 +459,36 @@
   }
   .chip-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
   .chip-btn.danger { background: var(--accent-2); color: var(--text-ink); border-color: var(--accent-2); }
+  .chip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .engine-badge {
+    display: inline-block;
+    font-size: 12.5px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    margin: 6px 0 10px;
+    border: 1px solid var(--border);
+  }
+  .engine-badge-on { background: rgba(184,145,43,0.15); border-color: var(--accent); color: var(--accent-2); }
+  .engine-badge-off { background: var(--surface-2); color: var(--text-muted); }
+  #myVoicePanel .helptext code {
+    background: var(--surface-2);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+  }
+  .voice-item {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14.5px;
+  }
+  .voice-item:last-child { border-bottom: none; }
+  .voice-item .voice-name { font-weight: 600; }
+  .voice-item .voice-meta { font-size: 12.5px; color: var(--text-muted); margin: 2px 0 6px; }
+  .voice-item .voice-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .voice-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .voice-status-dot.ready { background: #4a8f5c; }
+  .voice-status-dot.pending { background: var(--text-muted); }
 
   /* ---------- Help modal ---------- */
   .modal-backdrop {
@@ -504,6 +534,31 @@
   .modal-body ul { margin: 6px 0 0; padding-left: 20px; }
   .modal-body li { margin-bottom: 4px; }
 
+  /* ---------- Voice recording UI ---------- */
+  .rec-method-choice { display: flex; gap: 10px; margin: 10px 0; }
+  .rec-method-choice button {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 14.5px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .rec-method-choice button.selected { border-color: var(--accent); background: rgba(184,145,43,0.12); }
+  #voiceWaveCanvas { width: 100%; height: 60px; display: block; background: var(--surface-2); border-radius: 4px; margin: 10px 0; }
+  .rec-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  .rec-timer { font-variant-numeric: tabular-nums; font-size: 15px; color: var(--text-muted); }
+  .quality-msg { font-size: 13.5px; padding: 6px 10px; border-radius: 3px; margin-bottom: 6px; }
+  .quality-msg.ok { background: rgba(74,143,92,0.14); color: #2f6b3d; }
+  .quality-msg.warn { background: rgba(124,59,59,0.1); color: var(--accent-2); }
+  .quality-msg.error { background: rgba(124,59,59,0.18); color: var(--accent-2); font-weight: 600; }
+  .consent-box { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0 6px; font-size: 14px; }
+  .consent-box input { margin-top: 3px; flex-shrink: 0; }
+  .upload-sample-info { font-size: 13.5px; color: var(--text-muted); margin: 8px 0; }
+
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } * { scroll-behavior: auto !important; } }
 </style>
@@ -523,6 +578,25 @@
 
 <main class="layout">
   <aside class="sidebar">
+    <div class="panel" id="myVoicePanel">
+      <h2>🎙️ My Voice <span class="count">local, no API required</span></h2>
+      <p class="helptext" style="margin-top:0;">Create a voice from your own recording — this stays on your device unless you connect a local voice engine yourself.</p>
+      <div id="voiceEngineStatusLine" class="engine-badge engine-badge-off">🔊 Browser Voice — local engine not connected</div>
+      <div id="myVoicesList"><p class="shelf-empty" id="noVoicesText">● No custom voice created</p></div>
+      <button class="btn" id="createVoiceOpenBtn" type="button" style="width:100%; justify-content:center; margin-top:10px;">Create My Voice</button>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; font-size:14px; color:var(--text-muted);">⚙ Connect Local Voice Engine</summary>
+        <p class="helptext">This app never downloads a large AI model itself. To actually speak in a cloned voice, run a local or self-hosted voice-cloning server that answers <code>GET /health</code>, <code>POST /voices</code>, <code>POST /generate</code> and <code>DELETE /voices/:id</code>, then enter its address below (e.g. an open-source engine running on your own machine or network).</p>
+        <div class="field">
+          <label for="localEngineUrlInput">Engine URL</label>
+          <input type="text" id="localEngineUrlInput" placeholder="http://localhost:5000">
+        </div>
+        <button class="chip-btn" id="testEngineBtn" type="button" style="margin-top:8px;">Test connection</button>
+        <span id="engineTestResult" style="font-size:14px; color:var(--text-muted); margin-left:6px;"></span>
+      </details>
+      <p class="helptext" style="margin-top:12px;">Your voice is personal data. It's designed to stay on this device unless you explicitly connect an external service — and browser storage can be lost if site data is cleared, so it isn't a backup.</p>
+      <button class="chip-btn" id="deleteAllVoicesBtn" type="button" style="margin-top:6px;">Delete all local voice data</button>
+    </div>
     <div class="panel">
       <h2>Your shelf <span class="count" id="shelfCount"></span></h2>
       <div id="shelfList"><p class="shelf-empty">Books you open will be saved here in full — reopen anytime, no re-uploading.</p></div>
@@ -543,7 +617,8 @@
       <div id="chapterList"></div>
     </div>
     <div class="panel" id="exportPanel" style="display:none;">
-      <h2>Studio narration <span class="count">optional</span></h2>
+      <h2>Optional Cloud Voice Studio <span class="count">external provider required</span></h2>
+      <p class="helptext" style="margin-top:0;">This is different from "My Voice" above: <strong>My Voice</strong> is local and needs no API; this section sends text to a paid external provider (OpenAI or ElevenLabs) for a downloadable, studio-quality MP3.</p>
       <p class="helptext">Generate a real, downloadable MP3 with a paid text-to-speech API instead of the browser voice — far more natural. Your key is stored only in this browser and sent straight to the provider — never through Claude. This needs to be hosted on your own site; outside API calls are blocked in this in-chat preview.</p>
       <div class="field">
         <label for="apiProvider">Provider</label>
@@ -677,15 +752,91 @@
       <h3>5. Home button</h3>
       <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
 
-      <h3>6. Studio narration (optional, paid)</h3>
-      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Studio narration", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it, so the book can be read in your own voice. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
+      <h3>6. My Voice — read it in your own voice, no API required</h3>
+      <p>The "🎙️ My Voice" panel lets you record or upload a sample of your own voice, entirely on this device, with a required consent checkbox. This creates a local voice profile. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel) — without one, Lectern tells you plainly and reads with the Browser Voice instead, never a fake substitute.</p>
+
+      <h3>7. Optional Cloud Voice Studio (paid, external)</h3>
+      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Optional Cloud Voice Studio", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it there, so the book can be read in your own voice via their cloud service. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
+      <p class="helptext" style="margin:0;">"My Voice" keeps your recording on this device; "Optional Cloud Voice Studio" sends it to an external paid provider. Use whichever fits how you want to work.</p>
 
       <h3>Good to know</h3>
       <ul>
-        <li>Works fully offline once the page is loaded, except for Studio narration, which needs the internet.</li>
+        <li>Works fully offline once the page is loaded, except for Optional Cloud Voice Studio, which needs the internet; My Voice recording and quality checks work fully offline, but generating speech needs a connected local engine.</li>
         <li>Multi-column magazine layouts can read out of natural order.</li>
         <li>On iOS Safari, switching apps mid-sentence can restart that sentence.</li>
       </ul>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="voiceModalBackdrop">
+  <div class="modal" id="voiceModal" role="dialog" aria-modal="true" aria-labelledby="voiceModalTitle">
+    <div class="modal-header">
+      <h2 id="voiceModalTitle">Create My Voice</h2>
+      <button class="modal-close" id="voiceModalCloseBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="helptext" style="margin-top:0;">Record about 1–2 minutes of clear speech, or upload a sample — this stays on your device.</p>
+
+      <div class="rec-method-choice">
+        <button type="button" id="chooseRecordBtn" class="selected">🎙️ Record</button>
+        <button type="button" id="chooseUploadBtn">📁 Upload</button>
+      </div>
+
+      <div id="recordSection">
+        <canvas id="voiceWaveCanvas" width="500" height="60"></canvas>
+        <div class="rec-controls">
+          <button class="chip-btn" id="recStartBtn" type="button">● Start Recording</button>
+          <button class="chip-btn" id="recPauseBtn" type="button" style="display:none;">⏸ Pause</button>
+          <button class="chip-btn" id="recResumeBtn" type="button" style="display:none;">▶ Resume</button>
+          <button class="chip-btn" id="recStopBtn" type="button" style="display:none;">⏹ Stop</button>
+          <span class="rec-timer" id="recTimerText">0:00</span>
+        </div>
+      </div>
+
+      <div id="uploadSection" style="display:none;">
+        <input type="file" id="voiceUploadInput" accept=".wav,.mp3,.m4a,.ogg,.webm,audio/*">
+        <div class="upload-sample-info" id="uploadSampleInfo"></div>
+      </div>
+
+      <div id="sampleReadySection" style="display:none;">
+        <div class="rec-controls">
+          <button class="chip-btn" id="samplePlayBtn" type="button">▶ Play</button>
+          <button class="chip-btn" id="sampleRerecordBtn" type="button">↺ Re-record / choose another</button>
+        </div>
+        <div id="qualityMessages"></div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label for="voiceNameField">Name</label>
+        <input type="text" id="voiceNameField" placeholder="e.g. Anil Voice" style="flex:1; background:var(--surface-2); border:1px solid var(--border); border-radius:3px; padding:6px 8px; font-family:inherit; color:var(--text);">
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label for="voiceLangField">Language</label>
+        <select id="voiceLangField" style="flex:1; background:var(--surface-2); border:1px solid var(--border); border-radius:3px; padding:6px 8px; font-family:inherit; color:var(--text);">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="bn">Bengali</option>
+          <option value="mr">Marathi</option>
+          <option value="gu">Gujarati</option>
+          <option value="pa">Punjabi</option>
+          <option value="ta">Tamil</option>
+          <option value="te">Telugu</option>
+          <option value="kn">Kannada</option>
+          <option value="ml">Malayalam</option>
+          <option value="or">Odia</option>
+          <option value="ur">Urdu</option>
+        </select>
+      </div>
+
+      <label class="consent-box">
+        <input type="checkbox" id="consentCheckbox">
+        <span>I confirm that I own this voice or have permission from the person whose voice is being used.</span>
+      </label>
+      <p class="helptext">Only create or use a voice with the speaker's permission.</p>
+
+      <button class="btn" id="saveVoiceBtn" type="button" style="width:100%; justify-content:center; margin-top:10px;" disabled>Save Voice</button>
+      <div class="status-box" id="voiceModalStatusBox" style="margin-top:10px;"><div class="spinner"></div><span id="voiceModalStatusText"></span></div>
     </div>
   </div>
 </div>
@@ -705,12 +856,19 @@
       <div class="track-info">
         <div class="now" id="nowTitle">Nothing playing</div>
         <div class="sub" id="nowSub"></div>
+        <div class="sub" id="playbackEngineBadge"></div>
       </div>
     </div>
     <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
     <div class="player-row2">
       <button class="pill-btn" id="homeBtn" type="button" title="Stop and go back to your shelf">🏠 Home</button>
       <div class="field">
+        <label for="voiceSourceSelect">Voice source</label>
+        <select id="voiceSourceSelect">
+          <option value="browser">🔊 Browser Voice</option>
+        </select>
+      </div>
+      <div class="field" id="voiceTypeFieldWrap">
         <label for="voiceTypeFilter">Voice type</label>
         <select id="voiceTypeFilter">
           <option value="all">All voices</option>
@@ -719,7 +877,7 @@
           <option value="child">Child (if available)</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" id="voiceFieldWrap">
         <label for="voiceSelect">Voice</label>
         <select id="voiceSelect"></select>
       </div>
@@ -788,6 +946,44 @@
   var apiModelSelect = document.getElementById('apiModelSelect');
   var apiKeyInput = document.getElementById('apiKeyInput');
   var apiVoiceInput = document.getElementById('apiVoiceInput');
+  // My Voice (local) panel
+  var voiceEngineStatusLine = document.getElementById('voiceEngineStatusLine');
+  var myVoicesList = document.getElementById('myVoicesList');
+  var noVoicesText = document.getElementById('noVoicesText');
+  var createVoiceOpenBtn = document.getElementById('createVoiceOpenBtn');
+  var localEngineUrlInput = document.getElementById('localEngineUrlInput');
+  var testEngineBtn = document.getElementById('testEngineBtn');
+  var engineTestResult = document.getElementById('engineTestResult');
+  // Create My Voice modal
+  var voiceModalBackdrop = document.getElementById('voiceModalBackdrop');
+  var voiceModalCloseBtn = document.getElementById('voiceModalCloseBtn');
+  var chooseRecordBtn = document.getElementById('chooseRecordBtn');
+  var chooseUploadBtn = document.getElementById('chooseUploadBtn');
+  var recordSection = document.getElementById('recordSection');
+  var uploadSection = document.getElementById('uploadSection');
+  var voiceWaveCanvas = document.getElementById('voiceWaveCanvas');
+  var recStartBtn = document.getElementById('recStartBtn');
+  var recPauseBtn = document.getElementById('recPauseBtn');
+  var recResumeBtn = document.getElementById('recResumeBtn');
+  var recStopBtn = document.getElementById('recStopBtn');
+  var recTimerText = document.getElementById('recTimerText');
+  var voiceUploadInput = document.getElementById('voiceUploadInput');
+  var uploadSampleInfo = document.getElementById('uploadSampleInfo');
+  var sampleReadySection = document.getElementById('sampleReadySection');
+  var samplePlayBtn = document.getElementById('samplePlayBtn');
+  var sampleRerecordBtn = document.getElementById('sampleRerecordBtn');
+  var qualityMessagesEl = document.getElementById('qualityMessages');
+  var voiceNameField = document.getElementById('voiceNameField');
+  var voiceLangField = document.getElementById('voiceLangField');
+  var consentCheckbox = document.getElementById('consentCheckbox');
+  var saveVoiceBtn = document.getElementById('saveVoiceBtn');
+  var voiceModalStatusBox = document.getElementById('voiceModalStatusBox');
+  var voiceModalStatusText = document.getElementById('voiceModalStatusText');
+  // Player voice-source controls
+  var voiceSourceSelect = document.getElementById('voiceSourceSelect');
+  var voiceTypeFieldWrap = document.getElementById('voiceTypeFieldWrap');
+  var voiceFieldWrap = document.getElementById('voiceFieldWrap');
+  var playbackEngineBadge = document.getElementById('playbackEngineBadge');
   var cloneVoiceSection = document.getElementById('cloneVoiceSection');
   var voiceNameInput = document.getElementById('voiceNameInput');
   var recordVoiceBtn = document.getElementById('recordVoiceBtn');
@@ -823,7 +1019,7 @@
 
   // ---------------- State ----------------
   var book = null;          // {id, title, chapters:[{title, text, sentences:[]}]}
-  var state = { chapterIndex: 0, sentenceIndex: 0, playing: false, rate: 1, pitch: 1, voiceURI: null };
+  var state = { chapterIndex: 0, sentenceIndex: 0, playing: false, rate: 1, pitch: 1, voiceURI: null, voiceSource: 'browser' };
 
   // ---------------- Helpers ----------------
   function escapeHtml(s) {
@@ -859,7 +1055,7 @@
   }
 
   var DB_NAME = 'lectern_db';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   function openDB() {
     return new Promise(function(resolve, reject) {
       try {
@@ -868,6 +1064,8 @@
           var db = e.target.result;
           if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
           if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('voiceProfiles')) db.createObjectStore('voiceProfiles', { keyPath: 'voiceId' });
+          if (!db.objectStoreNames.contains('voiceSamples')) db.createObjectStore('voiceSamples', { keyPath: 'voiceId' });
         };
         req.onsuccess = function() { resolve(req.result); };
         req.onerror = function() { reject(req.error); };
@@ -922,6 +1120,83 @@
       });
     }).catch(function(e) { console.error('Lectern: could not remove from this browser\'s storage', e); });
   }
+
+  // ================= VOICE ENGINE ARCHITECTURE =================
+  // Frontend -> VoiceEngine -> LocalVoiceEngineAdapter -> (a local/open-source
+  // voice-cloning server you run yourself) -> generated audio -> player.
+  // No paid API key lives anywhere in this section. If no local engine is
+  // connected, every call below resolves with { ok:false, reason:'engine_unavailable' }
+  // and the app falls back to the browser voice — it never fakes a cloned voice.
+  function localEngineEndpoint() {
+    try { return (localStorage.getItem('lectern_local_engine_url') || '').trim(); } catch (e) { return ''; }
+  }
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, ms); })
+    ]);
+  }
+  var LocalVoiceEngineAdapter = {
+    // GET {endpoint}/health -> 200 OK means a local engine is connected and reachable.
+    isAvailable: function() {
+      var endpoint = localEngineEndpoint();
+      if (!endpoint) return Promise.resolve(false);
+      return withTimeout(fetch(endpoint.replace(/\/$/, '') + '/health'), 2500)
+        .then(function(res) { return !!(res && res.ok); })
+        .catch(function() { return false; });
+    },
+    // POST {endpoint}/voices  (multipart: name, language, sample) -> { voice_id }
+    createVoice: function(sampleBlob, options) {
+      var endpoint = localEngineEndpoint();
+      return this.isAvailable().then(function(available) {
+        if (!available) return { ok: false, reason: 'engine_unavailable' };
+        var form = new FormData();
+        form.append('name', (options && options.name) || 'My Voice');
+        form.append('language', (options && options.language) || 'en');
+        form.append('sample', sampleBlob, 'sample.webm');
+        return fetch(endpoint.replace(/\/$/, '') + '/voices', { method: 'POST', body: form })
+          .then(function(res) {
+            if (!res.ok) return { ok: false, reason: 'engine_error' };
+            return res.json().then(function(data) { return { ok: true, engineVoiceId: data.voice_id || data.id }; });
+          }).catch(function(e) { return { ok: false, reason: 'engine_error', error: e.message }; });
+      });
+    },
+    // POST {endpoint}/generate { text, voice_id } -> raw audio bytes
+    generateSpeech: function(text, voiceProfile) {
+      var endpoint = localEngineEndpoint();
+      return this.isAvailable().then(function(available) {
+        if (!available) return { ok: false, reason: 'engine_unavailable' };
+        return fetch(endpoint.replace(/\/$/, '') + '/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, voice_id: voiceProfile && voiceProfile.engineVoiceId })
+        }).then(function(res) {
+          if (!res.ok) return { ok: false, reason: 'engine_error' };
+          return res.arrayBuffer().then(function(buf) { return { ok: true, audio: buf }; });
+        }).catch(function(e) { return { ok: false, reason: 'engine_error', error: e.message }; });
+      });
+    },
+    // DELETE {endpoint}/voices/{id} — best-effort; local deletion happens regardless.
+    deleteVoice: function(voiceProfile) {
+      var endpoint = localEngineEndpoint();
+      if (!voiceProfile || !voiceProfile.engineVoiceId) return Promise.resolve({ ok: true });
+      return this.isAvailable().then(function(available) {
+        if (!available) return { ok: true };
+        return fetch(endpoint.replace(/\/$/, '') + '/voices/' + voiceProfile.engineVoiceId, { method: 'DELETE' })
+          .then(function() { return { ok: true }; }).catch(function(e) { return { ok: false, error: e.message }; });
+      });
+    },
+    testVoice: function(text, voiceProfile) { return this.generateSpeech(text, voiceProfile); }
+  };
+  var VoiceEngine = {
+    adapter: LocalVoiceEngineAdapter,
+    createVoice: function(sample, options) { return this.adapter.createVoice(sample, options); },
+    generateSpeech: function(text, voiceProfile, options) { return this.adapter.generateSpeech(text, voiceProfile, options); },
+    deleteVoice: function(voiceProfile) { return this.adapter.deleteVoice(voiceProfile); },
+    testVoice: function(text, voiceProfile) { return this.adapter.testVoice(text, voiceProfile); },
+    isAvailable: function() { return this.adapter.isAvailable(); }
+  };
+
   function persistBookContent() {
     if (!book) return;
     dbPut('books', {
@@ -1223,6 +1498,437 @@
       createVoiceBtn.disabled = false;
     });
   });
+
+  // ================= MY VOICE (LOCAL) SUBSYSTEM =================
+  var currentSampleBlob = null;
+  var recMediaRecorder = null;
+  var recMediaStream = null;
+  var recChunks = [];
+  var recSeconds = 0;
+  var recTimerId = null;
+  var recAudioCtx = null;
+  var recAnalyser = null;
+  var recRafId = null;
+  var samplePreviewAudio = null;
+  var voiceProfilesById = {};
+  var editingVoiceId = null;
+
+  try { localEngineUrlInput.value = localStorage.getItem('lectern_local_engine_url') || ''; } catch (e) {}
+  localEngineUrlInput.addEventListener('change', function() {
+    try { localStorage.setItem('lectern_local_engine_url', localEngineUrlInput.value.trim()); } catch (e) {}
+    refreshEngineStatus();
+  });
+  testEngineBtn.addEventListener('click', function() {
+    engineTestResult.textContent = 'Testing…';
+    VoiceEngine.isAvailable().then(function(ok) {
+      engineTestResult.textContent = ok ? 'Connected ✓' : 'Not reachable';
+      refreshEngineStatus();
+    });
+  });
+  function refreshEngineStatus() {
+    VoiceEngine.isAvailable().then(function(ok) {
+      voiceEngineStatusLine.textContent = ok ? '🎙️ My Voice — Local AI engine connected' : '🔊 Browser Voice — local engine not connected';
+      voiceEngineStatusLine.className = 'engine-badge ' + (ok ? 'engine-badge-on' : 'engine-badge-off');
+    });
+  }
+
+  function formatRecTimer(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function drawWaveform() {
+    if (!recAnalyser) return;
+    recRafId = requestAnimationFrame(drawWaveform);
+    var data = new Uint8Array(recAnalyser.frequencyBinCount);
+    recAnalyser.getByteFrequencyData(data);
+    var ctx = voiceWaveCanvas.getContext('2d');
+    var w = voiceWaveCanvas.width, h = voiceWaveCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#B8912B';
+    ctx.fillStyle = accentColor;
+    var barW = w / data.length;
+    for (var i = 0; i < data.length; i++) {
+      var barH = (data[i] / 255) * h;
+      ctx.fillRect(i * barW, h - barH, Math.max(1, barW - 1), barH);
+    }
+  }
+
+  function resetRecordingUI() {
+    recStartBtn.style.display = 'inline-block';
+    recPauseBtn.style.display = 'none';
+    recResumeBtn.style.display = 'none';
+    recStopBtn.style.display = 'none';
+    recTimerText.textContent = '0:00';
+    var ctx = voiceWaveCanvas.getContext('2d');
+    ctx.clearRect(0, 0, voiceWaveCanvas.width, voiceWaveCanvas.height);
+  }
+
+  recStartBtn.addEventListener('click', function() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVoiceModalStatus('This browser cannot access the microphone.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      recMediaStream = stream;
+      recChunks = [];
+      recSeconds = 0;
+      sampleReadySection.style.display = 'none';
+      recMediaRecorder = new MediaRecorder(stream);
+      recMediaRecorder.ondataavailable = function(e) { if (e.data && e.data.size) recChunks.push(e.data); };
+      recMediaRecorder.onstop = function() {
+        currentSampleBlob = new Blob(recChunks, { type: recMediaRecorder.mimeType || 'audio/webm' });
+        recMediaStream.getTracks().forEach(function(t) { t.stop(); });
+        if (recAudioCtx) { cancelAnimationFrame(recRafId); recAnalyser = null; recAudioCtx.close(); recAudioCtx = null; }
+        resetRecordingUI();
+        sampleReadySection.style.display = 'block';
+        runQualityCheck(currentSampleBlob);
+      };
+      recMediaRecorder.start();
+      recStartBtn.style.display = 'none';
+      recPauseBtn.style.display = 'inline-block';
+      recStopBtn.style.display = 'inline-block';
+      recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = recAudioCtx.createMediaStreamSource(stream);
+      recAnalyser = recAudioCtx.createAnalyser();
+      recAnalyser.fftSize = 256;
+      source.connect(recAnalyser);
+      drawWaveform();
+      recTimerId = setInterval(function() {
+        recSeconds++;
+        recTimerText.textContent = formatRecTimer(recSeconds);
+      }, 1000);
+    }).catch(function(err) {
+      console.error(err);
+      setVoiceModalStatus('Microphone access was blocked or unavailable.');
+    });
+  });
+  recPauseBtn.addEventListener('click', function() {
+    if (recMediaRecorder && recMediaRecorder.state === 'recording') {
+      recMediaRecorder.pause();
+      if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+      recPauseBtn.style.display = 'none';
+      recResumeBtn.style.display = 'inline-block';
+    }
+  });
+  recResumeBtn.addEventListener('click', function() {
+    if (recMediaRecorder && recMediaRecorder.state === 'paused') {
+      recMediaRecorder.resume();
+      recTimerId = setInterval(function() { recSeconds++; recTimerText.textContent = formatRecTimer(recSeconds); }, 1000);
+      recResumeBtn.style.display = 'none';
+      recPauseBtn.style.display = 'inline-block';
+    }
+  });
+  recStopBtn.addEventListener('click', function() {
+    if (recMediaRecorder && recMediaRecorder.state !== 'inactive') recMediaRecorder.stop();
+    if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+  });
+
+  voiceUploadInput.addEventListener('change', function() {
+    var f = voiceUploadInput.files[0];
+    if (!f) return;
+    currentSampleBlob = f;
+    var kb = Math.round(f.size / 1024);
+    uploadSampleInfo.textContent = f.name + ' — ' + kb + ' KB';
+    sampleReadySection.style.display = 'block';
+    runQualityCheck(f);
+  });
+
+  samplePlayBtn.addEventListener('click', function() {
+    if (!currentSampleBlob) return;
+    if (samplePreviewAudio) { samplePreviewAudio.pause(); }
+    samplePreviewAudio = new Audio(URL.createObjectURL(currentSampleBlob));
+    samplePreviewAudio.play();
+  });
+  sampleRerecordBtn.addEventListener('click', function() {
+    currentSampleBlob = null;
+    sampleReadySection.style.display = 'none';
+    qualityMessagesEl.innerHTML = '';
+    saveVoiceBtn.disabled = true;
+    uploadSampleInfo.textContent = '';
+    voiceUploadInput.value = '';
+    resetRecordingUI();
+  });
+
+  chooseRecordBtn.addEventListener('click', function() {
+    chooseRecordBtn.classList.add('selected'); chooseUploadBtn.classList.remove('selected');
+    recordSection.style.display = 'block'; uploadSection.style.display = 'none';
+  });
+  chooseUploadBtn.addEventListener('click', function() {
+    chooseUploadBtn.classList.add('selected'); chooseRecordBtn.classList.remove('selected');
+    uploadSection.style.display = 'block'; recordSection.style.display = 'none';
+  });
+
+  function runQualityCheck(blob) {
+    qualityMessagesEl.innerHTML = '';
+    blob.arrayBuffer().then(function(buf) {
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      var ctx = new AudioCtx();
+      return ctx.decodeAudioData(buf).then(function(audioBuffer) {
+        var duration = audioBuffer.duration;
+        var data = audioBuffer.getChannelData(0);
+        var step = Math.max(1, Math.floor(data.length / 200000));
+        var sumSq = 0, count = 0, silent = 0;
+        for (var i = 0; i < data.length; i += step) {
+          var v = Math.abs(data[i]);
+          sumSq += v * v; count++;
+          if (v < 0.01) silent++;
+        }
+        var rms = Math.sqrt(sumSq / Math.max(1, count));
+        var silenceRatio = silent / Math.max(1, count);
+        ctx.close();
+        renderQualityMessages(duration, rms, silenceRatio);
+        consentGate();
+      }).catch(function() {
+        ctx.close();
+        addQualityMsg('warn', 'Could not analyze this file, but you can still use it.');
+        consentGate();
+      });
+    }).catch(function() { consentGate(); });
+  }
+  function addQualityMsg(level, text) {
+    var div = document.createElement('div');
+    div.className = 'quality-msg ' + level;
+    div.textContent = text;
+    qualityMessagesEl.appendChild(div);
+  }
+  function renderQualityMessages(duration, rms, silenceRatio) {
+    qualityMessagesEl.innerHTML = '';
+    var any = false;
+    if (duration < 15) { addQualityMsg('error', 'Voice sample is too short — aim for at least 20–30 seconds, ideally 1–2 minutes.'); any = true; }
+    else if (duration < 45) { addQualityMsg('warn', 'A bit short — 1–2 minutes of speech usually gives a better result.'); any = true; }
+    if (rms < 0.02) { addQualityMsg('warn', 'Voice sample appears to be very quiet. Try recording closer to the mic, in a quiet room.'); any = true; }
+    if (silenceRatio > 0.6) { addQualityMsg('warn', 'A lot of this sample is silence — try to speak continuously throughout.'); any = true; }
+    if (!any) addQualityMsg('ok', 'Voice sample is ready.');
+  }
+  function consentGate() {
+    saveVoiceBtn.disabled = !(currentSampleBlob && consentCheckbox.checked);
+  }
+  consentCheckbox.addEventListener('change', consentGate);
+
+  function setVoiceModalStatus(msg) {
+    if (!msg) { voiceModalStatusBox.classList.remove('visible'); return; }
+    voiceModalStatusBox.classList.add('visible');
+    voiceModalStatusText.textContent = msg;
+  }
+
+  function openVoiceModal() {
+    editingVoiceId = null;
+    currentSampleBlob = null;
+    recChunks = [];
+    voiceNameField.value = '';
+    voiceLangField.value = 'en';
+    consentCheckbox.checked = false;
+    sampleReadySection.style.display = 'none';
+    qualityMessagesEl.innerHTML = '';
+    uploadSampleInfo.textContent = '';
+    voiceUploadInput.value = '';
+    saveVoiceBtn.disabled = true;
+    setVoiceModalStatus(null);
+    resetRecordingUI();
+    chooseRecordBtn.click();
+    voiceModalBackdrop.classList.add('visible');
+  }
+  function closeVoiceModal() {
+    if (recMediaRecorder && recMediaRecorder.state !== 'inactive') recMediaRecorder.stop();
+    if (recMediaStream) recMediaStream.getTracks().forEach(function(t) { t.stop(); });
+    if (recAudioCtx) { try { cancelAnimationFrame(recRafId); recAudioCtx.close(); } catch (e) {} recAudioCtx = null; }
+    if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+    voiceModalBackdrop.classList.remove('visible');
+  }
+  createVoiceOpenBtn.addEventListener('click', openVoiceModal);
+  voiceModalCloseBtn.addEventListener('click', closeVoiceModal);
+  voiceModalBackdrop.addEventListener('click', function(e) { if (e.target === voiceModalBackdrop) closeVoiceModal(); });
+  document.getElementById('deleteAllVoicesBtn').addEventListener('click', function() {
+    if (!confirm('Delete ALL saved voices and samples from this device? This cannot be undone.')) return;
+    dbGetAll('voiceProfiles').then(function(list) {
+      return Promise.all(list.map(function(p) {
+        return VoiceEngine.deleteVoice(p).finally(function() {
+          return Promise.all([dbDelete('voiceProfiles', p.voiceId), dbDelete('voiceSamples', p.voiceId)]);
+        });
+      }));
+    }).then(function() {
+      if (state.voiceSource !== 'browser') {
+        voiceSourceSelect.value = 'browser';
+        voiceSourceSelect.dispatchEvent(new Event('change'));
+      }
+      renderMyVoices();
+    });
+  });
+
+  saveVoiceBtn.addEventListener('click', function() {
+    if (!currentSampleBlob || !consentCheckbox.checked) return;
+    var voiceId = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    var name = voiceNameField.value.trim() || 'My Voice';
+    var language = voiceLangField.value;
+    saveVoiceBtn.disabled = true;
+    setVoiceModalStatus('Saving your voice sample…');
+    var profile = {
+      voiceId: voiceId, voiceName: name, createdAt: Date.now(), language: language,
+      sampleDuration: null, sampleSize: currentSampleBlob.size, consentConfirmed: true,
+      engine: 'local', engineVoiceId: null, status: 'sample_saved'
+    };
+    Promise.all([
+      dbPut('voiceSamples', { voiceId: voiceId, blob: currentSampleBlob, mimeType: currentSampleBlob.type || 'audio/webm' }),
+      dbPut('voiceProfiles', profile)
+    ]).then(function() {
+      setVoiceModalStatus('Checking for a connected local voice engine…');
+      return VoiceEngine.createVoice(currentSampleBlob, { name: name, language: language });
+    }).then(function(result) {
+      if (result && result.ok) {
+        profile.engineVoiceId = result.engineVoiceId;
+        profile.status = 'ready';
+        return dbPut('voiceProfiles', profile);
+      }
+      setVoiceModalStatus('Saved. Voice cloning engine is not installed — Browser Voice will be used for this voice until one is connected.');
+      return null;
+    }).then(function() {
+      renderMyVoices();
+      setTimeout(closeVoiceModal, 1400);
+    }).catch(function(e) {
+      console.error(e);
+      setVoiceModalStatus('Could not save the voice: ' + e.message);
+      saveVoiceBtn.disabled = false;
+    });
+  });
+
+  function voiceStatusLabel(profile) {
+    return profile.status === 'ready' ? 'Ready — local engine cloned this voice' : 'Sample saved — engine not installed yet';
+  }
+  function renderMyVoices() {
+    dbGetAll('voiceProfiles').then(function(list) {
+      voiceProfilesById = {};
+      list.forEach(function(p) { voiceProfilesById[p.voiceId] = p; });
+      noVoicesText.style.display = list.length ? 'none' : 'block';
+      var prevSelected = voiceSourceSelect.value;
+      voiceSourceSelect.innerHTML = '<option value="browser">🔊 Browser Voice</option>';
+      var container = document.createElement('div');
+      list.sort(function(a, b) { return b.createdAt - a.createdAt; }).forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.voiceId;
+        opt.textContent = '🎙️ My Voice — ' + p.voiceName;
+        voiceSourceSelect.appendChild(opt);
+
+        var item = document.createElement('div');
+        item.className = 'voice-item';
+        var dateStr = new Date(p.createdAt).toLocaleDateString();
+        item.innerHTML =
+          '<div class="voice-name"><span class="voice-status-dot ' + (p.status === 'ready' ? 'ready' : 'pending') + '"></span>' + escapeHtml(p.voiceName) + '</div>' +
+          '<div class="voice-meta">Created ' + dateStr + ' · ' + escapeHtml(p.language.toUpperCase()) + ' · ' + voiceStatusLabel(p) + '</div>' +
+          '<div class="voice-actions">' +
+          '<button class="chip-btn" data-act="test">▶ Test</button>' +
+          '<button class="chip-btn" data-act="use">Use</button>' +
+          '<button class="chip-btn" data-act="rename">Rename</button>' +
+          '<button class="chip-btn" data-act="delete">Delete</button>' +
+          '</div><div class="voice-test-status" style="font-size:14px; color:var(--text-muted); margin-top:4px;"></div>';
+        item.querySelector('[data-act="test"]').addEventListener('click', function() { testVoiceProfile(p, item.querySelector('.voice-test-status')); });
+        item.querySelector('[data-act="use"]').addEventListener('click', function() {
+          voiceSourceSelect.value = p.voiceId;
+          voiceSourceSelect.dispatchEvent(new Event('change'));
+        });
+        item.querySelector('[data-act="rename"]').addEventListener('click', function() { renameVoiceProfile(p); });
+        item.querySelector('[data-act="delete"]').addEventListener('click', function() { deleteVoiceProfile(p); });
+        container.appendChild(item);
+      });
+      myVoicesList.innerHTML = '';
+      myVoicesList.appendChild(noVoicesText);
+      myVoicesList.appendChild(container);
+      if (list.some(function(p) { return p.voiceId === prevSelected; }) || prevSelected === 'browser') {
+        voiceSourceSelect.value = prevSelected;
+      }
+      refreshEngineStatus();
+    });
+  }
+  function testVoiceProfile(profile, statusEl) {
+    statusEl.textContent = 'Testing…';
+    VoiceEngine.testVoice('Hello. This is a test of my personal voice.', profile).then(function(result) {
+      if (result && result.ok) {
+        statusEl.textContent = 'Playing…';
+        var blob = new Blob([result.audio], { type: 'audio/wav' });
+        var a = new Audio(URL.createObjectURL(blob));
+        a.onended = function() { statusEl.textContent = ''; };
+        a.play();
+      } else {
+        statusEl.textContent = 'Voice cloning engine is not installed. Browser voice is available instead.';
+      }
+    });
+  }
+  function renameVoiceProfile(profile) {
+    var name = prompt('Rename this voice:', profile.voiceName);
+    if (name === null) return;
+    name = name.trim();
+    if (!name) return;
+    profile.voiceName = name;
+    dbPut('voiceProfiles', profile).then(renderMyVoices);
+  }
+  function deleteVoiceProfile(profile) {
+    if (!confirm('Delete "' + profile.voiceName + '"? This removes the saved sample and profile from this device.')) return;
+    VoiceEngine.deleteVoice(profile).finally(function() {
+      Promise.all([dbDelete('voiceProfiles', profile.voiceId), dbDelete('voiceSamples', profile.voiceId)]).then(function() {
+        if (state.voiceSource === profile.voiceId) {
+          voiceSourceSelect.value = 'browser';
+          voiceSourceSelect.dispatchEvent(new Event('change'));
+        }
+        renderMyVoices();
+      });
+    });
+  }
+
+  function updatePlaybackEngineBadge() {
+    if (state.voiceSource === 'browser') { playbackEngineBadge.textContent = ''; return; }
+    var profile = voiceProfilesById[state.voiceSource];
+    if (!profile) { playbackEngineBadge.textContent = ''; return; }
+    VoiceEngine.isAvailable().then(function(ok) {
+      playbackEngineBadge.textContent = ok ? '🎙️ My Voice — Local AI' : 'Voice cloning engine is not installed. Browser voice is available instead.';
+    });
+  }
+  voiceSourceSelect.addEventListener('change', function() {
+    state.voiceSource = voiceSourceSelect.value;
+    var isLocal = state.voiceSource !== 'browser';
+    voiceTypeFieldWrap.style.display = isLocal ? 'none' : 'flex';
+    voiceFieldWrap.style.display = isLocal ? 'none' : 'flex';
+    updatePlaybackEngineBadge();
+    if (state.playing) speakFrom(state.chapterIndex, state.sentenceIndex);
+  });
+
+  var localAudioEl = new Audio();
+  function speakSentenceBrowser(text) {
+    var utter = new SpeechSynthesisUtterance(text);
+    var voices = speechSynthesis.getVoices();
+    var v = voices.filter(function(v) { return v.voiceURI === state.voiceURI; })[0];
+    if (v) { utter.voice = v; utter.lang = v.lang; }
+    utter.rate = state.rate;
+    utter.pitch = state.pitch;
+    utter.onend = sentenceAdvance;
+    utter.onerror = sentenceAdvance;
+    speechSynthesis.speak(utter);
+  }
+  function speakSentenceLocal(text) {
+    var profile = voiceProfilesById[state.voiceSource];
+    if (!profile) { speakSentenceBrowser(text); return; }
+    nowSub.textContent = 'Generating voice…';
+    VoiceEngine.generateSpeech(text, profile).then(function(result) {
+      if (!state.playing) return;
+      if (!result || !result.ok) {
+        playbackEngineBadge.textContent = 'Voice cloning engine is not installed. Browser voice is available instead.';
+        speakSentenceBrowser(text);
+        return;
+      }
+      playbackEngineBadge.textContent = '🎙️ My Voice — Local AI';
+      var blob = new Blob([result.audio], { type: 'audio/wav' });
+      var url = URL.createObjectURL(blob);
+      localAudioEl.src = url;
+      localAudioEl.playbackRate = state.rate;
+      localAudioEl.onended = function() { URL.revokeObjectURL(url); sentenceAdvance(); };
+      localAudioEl.onerror = function() { URL.revokeObjectURL(url); sentenceAdvance(); };
+      localAudioEl.play().catch(function() { sentenceAdvance(); });
+    });
+  }
+  function sentenceAdvance() {
+    if (!state.playing) return;
+    state.sentenceIndex++;
+    persistProgress();
+    playNextSentence();
+  }
 
   function generateNarration() {
     if (!book) return;
@@ -1610,6 +2316,7 @@
       highlightSentence(sentenceIndex);
     }
     speechSynthesis.cancel();
+    localAudioEl.pause();
     // Chrome/Safari can silently drop an utterance spoken in the same tick as cancel() — a short defer avoids that.
     setTimeout(function() {
       if (state.playing) playNextSentence();
@@ -1635,34 +2342,23 @@
     }
     highlightSentence(state.sentenceIndex);
     var text = chapter.sentences[state.sentenceIndex];
-    var utter = new SpeechSynthesisUtterance(text);
-    var voices = speechSynthesis.getVoices();
-    var v = voices.filter(function(v){ return v.voiceURI === state.voiceURI; })[0];
-    if (v) { utter.voice = v; utter.lang = v.lang; }
-    utter.rate = state.rate;
-    utter.pitch = state.pitch;
-    utter.onend = function() {
-      if (!state.playing) return;
-      state.sentenceIndex++;
-      persistProgress();
-      playNextSentence();
-    };
-    utter.onerror = function() {
-      if (!state.playing) return;
-      state.sentenceIndex++;
-      playNextSentence();
-    };
-    speechSynthesis.speak(utter);
+    if (state.voiceSource && state.voiceSource !== 'browser') {
+      speakSentenceLocal(text);
+    } else {
+      speakSentenceBrowser(text);
+    }
   }
 
   function pausePlayback() {
     state.playing = false;
     speechSynthesis.cancel();
+    localAudioEl.pause();
     updatePlayButton();
   }
   function stopPlayback() {
     state.playing = false;
     speechSynthesis.cancel();
+    localAudioEl.pause();
     updatePlayButton();
   }
   function jumpTo(chapterIndex, sentenceIndex) {
@@ -1887,6 +2583,7 @@
     if (book) persistProgress();
   });
 
+  renderMyVoices();
   renderShelf();
 })();
 </script>
