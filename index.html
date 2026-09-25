@@ -544,7 +544,7 @@
     </div>
     <div class="panel" id="exportPanel" style="display:none;">
       <h2>Studio narration <span class="count">optional</span></h2>
-      <p class="helptext">Generate a real, downloadable MP3 with a paid text-to-speech API instead of the browser voice. Your key is stored only in this browser and sent straight to the provider — never through Claude. This needs to be hosted on your own site; outside API calls are blocked in this in-chat preview.</p>
+      <p class="helptext">Generate a real, downloadable MP3 with a paid text-to-speech API instead of the browser voice — far more natural. Your key is stored only in this browser and sent straight to the provider — never through Claude. This needs to be hosted on your own site; outside API calls are blocked in this in-chat preview.</p>
       <div class="field">
         <label for="apiProvider">Provider</label>
         <select id="apiProvider">
@@ -557,12 +557,16 @@
         <input type="password" id="apiKeyInput" placeholder="Paste your key">
       </div>
       <div class="field">
+        <label for="apiModelSelect">Quality</label>
+        <select id="apiModelSelect"></select>
+      </div>
+      <div class="field">
         <label for="apiVoiceInput">Voice</label>
         <input type="text" id="apiVoiceInput" list="openaiVoiceList" placeholder="alloy, or ElevenLabs voice ID">
         <datalist id="openaiVoiceList">
           <option value="alloy"><option value="echo"><option value="fable"><option value="onyx"><option value="nova"><option value="shimmer">
         </datalist>
-        <p class="helptext" style="margin-top:6px;">OpenAI voices: nova, shimmer and alloy read as female; echo, onyx and fable read as male — OpenAI has no dedicated child voice. On ElevenLabs, paste any voice ID from your Voice Library (elevenlabs.io/voice-library), including their female, male and child voices.</p>
+        <p class="helptext" style="margin-top:6px;">OpenAI voices: nova, shimmer and alloy read as female; echo, onyx and fable read as male — OpenAI has no dedicated child voice. On ElevenLabs, paste any voice ID from your Voice Library (elevenlabs.io/voice-library), including their female, male and child voices. The most natural options cost more per character — the Quality dropdown lets you trade naturalness for cost.</p>
       </div>
       <div class="field">
         <label for="exportScope">Narrate</label>
@@ -765,6 +769,7 @@
 
   var exportPanel = document.getElementById('exportPanel');
   var apiProviderSel = document.getElementById('apiProvider');
+  var apiModelSelect = document.getElementById('apiModelSelect');
   var apiKeyInput = document.getElementById('apiKeyInput');
   var apiVoiceInput = document.getElementById('apiVoiceInput');
   var exportScopeSel = document.getElementById('exportScope');
@@ -1028,7 +1033,30 @@
   });
 
   // ---------------- Paid narration export ----------------
-  var apiSettings = { provider: 'openai', apiKey: '', voice: 'alloy' };
+  var apiSettings = { provider: 'openai', apiKey: '', voice: 'alloy', model: '' };
+  var MODEL_OPTIONS = {
+    openai: [
+      { value: 'gpt-4o-mini-tts', label: 'Natural (gpt-4o-mini-tts) — recommended' },
+      { value: 'tts-1-hd', label: 'High fidelity (tts-1-hd)' },
+      { value: 'tts-1', label: 'Fast, more robotic (tts-1)' }
+    ],
+    elevenlabs: [
+      { value: 'eleven_v3', label: 'Most natural (eleven_v3) — pricier' },
+      { value: 'eleven_multilingual_v2', label: 'Multilingual v2 — cheaper' }
+    ]
+  };
+  function populateModelOptions() {
+    var options = MODEL_OPTIONS[apiSettings.provider] || MODEL_OPTIONS.openai;
+    apiModelSelect.innerHTML = '';
+    options.forEach(function(o) {
+      var opt = document.createElement('option');
+      opt.value = o.value; opt.textContent = o.label;
+      apiModelSelect.appendChild(opt);
+    });
+    var has = options.some(function(o) { return o.value === apiSettings.model; });
+    if (!has) apiSettings.model = options[0].value;
+    apiModelSelect.value = apiSettings.model;
+  }
   function loadApiSettings() {
     try {
       var s = JSON.parse(localStorage.getItem('lectern_api_settings') || 'null');
@@ -1054,10 +1082,15 @@
   }
   function callTTS(text) {
     if (apiSettings.provider === 'openai') {
+      var model = apiSettings.model || 'gpt-4o-mini-tts';
+      var body = { model: model, voice: apiSettings.voice || 'alloy', input: text };
+      if (model === 'gpt-4o-mini-tts') {
+        body.instructions = 'Read this in a warm, natural, engaged narrator voice, with clear pacing and expression, like a professional audiobook narrator.';
+      }
       return fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiSettings.apiKey },
-        body: JSON.stringify({ model: 'tts-1', voice: apiSettings.voice || 'alloy', input: text })
+        body: JSON.stringify(body)
       }).then(function(res) {
         if (!res.ok) return res.text().then(function(t) { throw new Error('OpenAI TTS error ' + res.status + ': ' + t.slice(0, 200)); });
         return res.arrayBuffer();
@@ -1067,7 +1100,7 @@
     return fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'xi-api-key': apiSettings.apiKey },
-      body: JSON.stringify({ text: text, model_id: 'eleven_multilingual_v2' })
+      body: JSON.stringify({ text: text, model_id: apiSettings.model || 'eleven_v3' })
     }).then(function(res) {
       if (!res.ok) return res.text().then(function(t) { throw new Error('ElevenLabs error ' + res.status + ': ' + t.slice(0, 200)); });
       return res.arrayBuffer();
@@ -1703,7 +1736,14 @@
   apiProviderSel.value = apiSettings.provider;
   apiKeyInput.value = apiSettings.apiKey;
   apiVoiceInput.value = apiSettings.voice;
-  apiProviderSel.addEventListener('change', function() { apiSettings.provider = apiProviderSel.value; saveApiSettings(); });
+  populateModelOptions();
+  apiProviderSel.addEventListener('change', function() {
+    apiSettings.provider = apiProviderSel.value;
+    apiSettings.model = '';
+    populateModelOptions();
+    saveApiSettings();
+  });
+  apiModelSelect.addEventListener('change', function() { apiSettings.model = apiModelSelect.value; saveApiSettings(); });
   apiKeyInput.addEventListener('change', function() { apiSettings.apiKey = apiKeyInput.value; saveApiSettings(); });
   apiVoiceInput.addEventListener('change', function() { apiSettings.voice = apiVoiceInput.value; saveApiSettings(); });
   generateAudioBtn.addEventListener('click', generateNarration);
