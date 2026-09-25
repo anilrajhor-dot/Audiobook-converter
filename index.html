@@ -573,6 +573,7 @@
     <span class="tagline">Turn any document into a spoken-word book</span>
   </div>
   <div style="display:flex; align-items:center; gap:14px;">
+    <button class="pill-btn" id="askAiBtn" type="button">🤖 Ask AI</button>
     <button class="pill-btn" id="helpBtn" type="button">❓ Help</button>
     <div class="byline">Developed by Anil Sharma<br>Former General Manager, Central Bank of India</div>
   </div>
@@ -743,30 +744,58 @@
       <p>Drop a file onto the panel, or tap "Choose a file". Lectern reads PDF, EPUB, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), plain text, and photos or scans (JPG/PNG etc.) — scanned pages are recognised automatically with on-device OCR, which can take a little longer. PowerPoint reads each slide's text as a chapter; Excel reads each sheet row by row, since spreadsheets aren't really prose. Older .ppt/.xls/.doc files aren't supported — re-save them in the modern format first. If a scanned page or photo is in Hindi, Tamil, Bengali or another Indian language, pick it from the "Scanned-page language" dropdown first — OCR needs to know the script to read it correctly. PDFs, EPUBs, Word files and plain text with a proper text layer work in any language automatically, no picker needed.</p>
 
       <h3>2. Listen</h3>
-      <p>Once a book opens, the player bar appears at the bottom. <strong>▶</strong> plays from where the highlighted sentence is; <strong>⏸</strong> pauses and keeps your place; <strong>⏹</strong> stops and jumps back to the start of the current chapter. The <strong>◀ ▶</strong> arrows move a sentence at a time, and <strong>⏮ ⏭</strong> jump a whole chapter. Tap anywhere on the thin progress bar to skip to that point in the book.</p>
+      <p>Once a book opens, the player bar appears at the bottom. The bookmark-icon button jumps back to your last saved position at any time. <strong>▶</strong> plays from where the highlighted sentence is; <strong>⏸</strong> pauses and keeps your place; <strong>⏹</strong> stops and jumps back to the start of the current chapter. The <strong>◀ ▶</strong> arrows move a sentence at a time, and <strong>⏮ ⏭</strong> jump a whole chapter. Tap anywhere on the thin progress bar to skip to that point in the book.</p>
 
       <h3>3. Choose a voice</h3>
-      <p>"Voice type" narrows the list to female, male, or child voices where your device offers them, then pick the exact voice from "Voice". Speed and pitch sliders adjust the reading as it plays. Whether Hindi, Tamil or other Indian-language voices appear here depends entirely on your device and browser — some have them built in, others need a language pack added in the phone's own settings. If none is available, the book's text is still there to read, just without a matching voice to speak it.</p>
+      <p>"Voice source" picks between the browser voice and any "My Voice" profile you've created. With Browser Voice selected, "Voice type" narrows the list to female, male, or child voices where your device offers them, then pick the exact voice from "Voice". Speed and pitch sliders adjust the reading as it plays. Whether Hindi, Tamil or other Indian-language voices appear here depends entirely on your device and browser — some have them built in, others need a language pack added in the phone's own settings.</p>
 
       <h3>4. Your shelf</h3>
-      <p>Every book you open is saved here in full, so you can come back and read it in parts over time — no re-uploading. Tap a title on the shelf to reopen it where you left off. The ✕ on a row removes just that book; "Clear finished" removes every completed book at once, and "Clear all" empties the whole shelf. All of this lives only in this browser on this device.</p>
+      <p>Every book you open is saved here in full, so you can come back and read it in parts over time — no re-uploading. Tap a title on the shelf to reopen it where you left off automatically. The ✕ on a row removes just that book; "Clear finished" removes every completed book at once, and "Clear all" empties the whole shelf. All of this lives only in this browser on this device.</p>
 
       <h3>5. Home button</h3>
       <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
 
       <h3>6. My Voice — read it in your own voice, no API required</h3>
-      <p>The "🎙️ My Voice" panel lets you record or upload a sample of your own voice, entirely on this device, with a required consent checkbox. This creates a local voice profile. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel) — without one, playback stops and Lectern tells you plainly rather than quietly substituting the browser voice. Switch "Voice source" to Browser Voice any time you want to keep listening without a connected engine.</p>
+      <p>The "🎙️ My Voice" panel lets you record (with a live waveform and pause/resume/stop) or upload a sample of your own voice, entirely on this device, with a required consent checkbox and basic quality checks (length, loudness, silence). Each saved voice can be renamed, tested, or deleted. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel, and its documented URL contract) — without one, playback stops and Lectern tells you plainly rather than quietly substituting the browser voice. Switch "Voice source" to Browser Voice any time you want to keep listening without a connected engine. "Delete all local voice data" wipes every saved voice from this device, with confirmation.</p>
 
       <h3>7. Optional Cloud Voice Studio (paid, external)</h3>
-      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Optional Cloud Voice Studio", paste an OpenAI or ElevenLabs API key, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it there, so the book can be read in your own voice via their cloud service. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
+      <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Optional Cloud Voice Studio", paste an OpenAI or ElevenLabs API key, pick a Quality level, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it there, so the book can be read in your own voice via their cloud service. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
       <p class="helptext" style="margin:0;">"My Voice" keeps your recording on this device; "Optional Cloud Voice Studio" sends it to an external paid provider. Use whichever fits how you want to work.</p>
+
+      <h3>8. Ask AI</h3>
+      <p>The "🤖 Ask AI" button in the header opens a small assistant for questions about using Lectern, or about the book you're reading. It uses the same OpenAI key you enter in "Optional Cloud Voice Studio" (set Provider to OpenAI there first) — nothing goes through Claude, and like the other paid features it needs the internet and won't work in this in-chat preview.</p>
 
       <h3>Good to know</h3>
       <ul>
-        <li>Works fully offline once the page is loaded, except for Optional Cloud Voice Studio, which needs the internet; My Voice recording and quality checks work fully offline, but generating speech needs a connected local engine.</li>
+        <li>Works fully offline once the page is loaded, except for Optional Cloud Voice Studio and Ask AI, which need the internet; My Voice recording and quality checks work fully offline, but generating speech needs a connected local engine.</li>
         <li>Multi-column magazine layouts can read out of natural order.</li>
         <li>On iOS Safari, switching apps mid-sentence can restart that sentence.</li>
       </ul>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="askAiBackdrop">
+  <div class="modal" id="askAiModal" role="dialog" aria-modal="true" aria-labelledby="askAiTitle">
+    <div class="modal-header">
+      <h2 id="askAiTitle">Ask AI</h2>
+      <button class="modal-close" id="askAiCloseBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <svg viewBox="0 0 220 90" width="100%" height="90" style="display:block; margin:0 auto 12px;" aria-hidden="true">
+        <rect x="18" y="14" width="130" height="52" rx="10" fill="var(--surface-2)" stroke="var(--border)"/>
+        <path d="M38 66 L30 80 L52 66 Z" fill="var(--surface-2)" stroke="var(--border)"/>
+        <circle cx="52" cy="40" r="6" fill="var(--accent)"/>
+        <circle cx="83" cy="40" r="6" fill="var(--accent-2)"/>
+        <circle cx="114" cy="40" r="6" fill="var(--accent)"/>
+        <path d="M168 20 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5 z" fill="var(--accent)"/>
+        <path d="M196 52 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 z" fill="var(--accent-2)"/>
+      </svg>
+      <p class="helptext" style="margin-top:0;">Ask how to do something in Lectern, or a question about the book you're reading. This uses the OpenAI key from "Optional Cloud Voice Studio" — set the provider there to OpenAI and paste a key first. Nothing goes through Claude, and this needs the internet, so it won't work in this in-chat preview.</p>
+      <textarea id="askAiInput" rows="3" placeholder="e.g. How do I read a scanned Hindi letter?" style="width:100%; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--border); border-radius:4px; padding:8px 10px; font-family:inherit; font-size:14.5px; color:var(--text); resize:vertical;"></textarea>
+      <button class="btn" id="askAiSendBtn" type="button" style="width:100%; justify-content:center; margin-top:10px;">Ask</button>
+      <div class="status-box" id="askAiStatusBox" style="margin-top:10px;"><div class="spinner"></div><span id="askAiStatusText"></span></div>
+      <div id="askAiAnswer" style="margin-top:12px; font-size:14.5px; line-height:1.6; white-space:pre-wrap;"></div>
     </div>
   </div>
 </div>
@@ -1329,6 +1358,67 @@
   helpBackdrop.addEventListener('click', function(e) { if (e.target === helpBackdrop) closeHelp(); });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && helpBackdrop.classList.contains('visible')) closeHelp();
+  });
+
+  // ---------------- Ask AI modal ----------------
+  var askAiBtn = document.getElementById('askAiBtn');
+  var askAiBackdrop = document.getElementById('askAiBackdrop');
+  var askAiCloseBtn = document.getElementById('askAiCloseBtn');
+  var askAiInput = document.getElementById('askAiInput');
+  var askAiSendBtn = document.getElementById('askAiSendBtn');
+  var askAiStatusBox = document.getElementById('askAiStatusBox');
+  var askAiStatusText = document.getElementById('askAiStatusText');
+  var askAiAnswer = document.getElementById('askAiAnswer');
+  var ASK_AI_SYSTEM_PROMPT = 'You are a brief, friendly in-app helper for Lectern, an offline document-to-audiobook web app. It reads PDF, EPUB, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), plain text and scanned photos (with on-device OCR, including Hindi/Tamil/Bengali/Marathi/Gujarati/Punjabi/Telugu/Kannada/Malayalam/Odia/Urdu/Sanskrit via a language picker). The player has Stop/Prev chapter/Back a sentence/Play-Pause/Forward a sentence/Next chapter/Resume(bookmark icon)/Home buttons, a progress bar, Speed and Pitch sliders, and a Voice/Voice type picker. Books are auto-saved to a browser-local "shelf" and resume automatically. "My Voice" lets a user record or upload their own voice sample (with required consent) and, once a local voice-cloning engine is connected via a URL field, reads documents in that cloned voice — it never silently substitutes another voice if no engine is connected, it just says so plainly. "Optional Cloud Voice Studio" is a separate, paid feature using the user\'s own OpenAI or ElevenLabs API key to generate a downloadable MP3, including ElevenLabs voice cloning. Answer the user\'s question about using Lectern, or about the book text they give you, concisely in a few sentences.';
+
+  function openAskAi() { askAiBackdrop.classList.add('visible'); askAiInput.focus(); }
+  function closeAskAi() { askAiBackdrop.classList.remove('visible'); }
+  askAiBtn.addEventListener('click', openAskAi);
+  askAiCloseBtn.addEventListener('click', closeAskAi);
+  askAiBackdrop.addEventListener('click', function(e) { if (e.target === askAiBackdrop) closeAskAi(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && askAiBackdrop.classList.contains('visible')) closeAskAi();
+  });
+  function setAskAiStatus(msg) {
+    if (!msg) { askAiStatusBox.classList.remove('visible'); return; }
+    askAiStatusBox.classList.add('visible');
+    askAiStatusText.textContent = msg;
+  }
+  askAiSendBtn.addEventListener('click', function() {
+    var question = askAiInput.value.trim();
+    if (!question) return;
+    if (apiSettings.provider !== 'openai' || !apiSettings.apiKey) {
+      askAiAnswer.textContent = '';
+      setAskAiStatus('Ask AI needs an OpenAI key — open "Optional Cloud Voice Studio", set Provider to OpenAI, and paste your key there first.');
+      return;
+    }
+    askAiSendBtn.disabled = true;
+    askAiAnswer.textContent = '';
+    setAskAiStatus('Thinking…');
+    fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiSettings.apiKey },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: ASK_AI_SYSTEM_PROMPT },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.4
+      })
+    }).then(function(res) {
+      if (!res.ok) return res.text().then(function(t) { throw new Error('OpenAI error ' + res.status + ': ' + t.slice(0, 200)); });
+      return res.json();
+    }).then(function(data) {
+      var reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      askAiAnswer.textContent = reply || 'No answer came back — try rephrasing the question.';
+      setAskAiStatus(null);
+      askAiSendBtn.disabled = false;
+    }).catch(function(err) {
+      console.error(err);
+      setAskAiStatus('Could not reach the AI: ' + err.message);
+      askAiSendBtn.disabled = false;
+    });
   });
 
   // ---------------- Paid narration export ----------------
