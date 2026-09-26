@@ -562,6 +562,59 @@
   .upload-sample-info { font-size: 13.5px; color: var(--text-muted); margin: 8px 0; }
 
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  /* ---------- Voice Assistant / Drive Mode ---------- */
+  .drive-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--surface);
+    z-index: 40;
+    padding: env(safe-area-inset-top, 18px) 18px calc(env(safe-area-inset-bottom, 18px) + 18px);
+    flex-direction: column;
+  }
+  .drive-backdrop.visible { display: flex; }
+  .drive-top { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .drive-top h2 { font-family: 'Lora', serif; font-size: 18px; margin: 0; }
+  .drive-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; overflow-y: auto; padding: 10px 0; }
+  .drive-state-label { font-size: 15px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-muted); text-transform: uppercase; min-height: 20px; }
+  .drive-mic {
+    width: 130px; height: 130px; border-radius: 50%;
+    background: var(--accent); color: var(--text-ink);
+    border: none; font-size: 46px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 0 rgba(184,145,43,0.5);
+    flex-shrink: 0;
+  }
+  .drive-mic:disabled { opacity: 0.5; cursor: not-allowed; }
+  .drive-mic.listening { background: var(--accent-2); animation: drivePulse 1.4s ease-out infinite; }
+  .drive-mic.speaking { background: var(--accent-2); }
+  @keyframes drivePulse {
+    0% { box-shadow: 0 0 0 0 rgba(124,59,59,0.45); }
+    70% { box-shadow: 0 0 0 28px rgba(124,59,59,0); }
+    100% { box-shadow: 0 0 0 0 rgba(124,59,59,0); }
+  }
+  .drive-transcript, .drive-response { width: 100%; max-width: 480px; text-align: center; font-size: 16px; line-height: 1.5; min-height: 22px; }
+  .drive-transcript { color: var(--text-muted); font-style: italic; }
+  .drive-response { color: var(--text); font-weight: 500; }
+  .drive-news-list { width: 100%; max-width: 520px; text-align: left; }
+  .drive-news-item { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 14px; }
+  .drive-news-item.active { border-color: var(--accent); background: rgba(184,145,43,0.1); }
+  .drive-news-item .headline { font-weight: 600; margin-bottom: 4px; }
+  .drive-news-item .meta { color: var(--text-muted); font-size: 12.5px; }
+  .drive-notes-list { width: 100%; max-width: 480px; text-align: left; font-size: 14px; }
+  .drive-note-item { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  .drive-note-item .meta { color: var(--text-muted); font-size: 12px; }
+  .drive-bottom { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; }
+  .drive-stop {
+    width: 100%; max-width: 300px; background: var(--accent-2); color: var(--text-ink);
+    border: none; border-radius: 8px; padding: 16px; font-size: 17px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .drive-settings-toggle { background: none; border: none; color: var(--text-muted); text-decoration: underline; cursor: pointer; font-family: inherit; font-size: 13px; }
+  .drive-news-settings { width: 100%; max-width: 420px; margin-top: 8px; display: none; }
+  .drive-news-settings.visible { display: block; }
+  @media (prefers-reduced-motion: reduce) { .drive-mic.listening { animation: none; } }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } * { scroll-behavior: auto !important; } }
 </style>
 </head>
@@ -573,6 +626,7 @@
     <span class="tagline">Turn any document into a spoken-word book</span>
   </div>
   <div style="display:flex; align-items:center; gap:14px;">
+    <button class="pill-btn" id="driveModeBtn" type="button">🎙️ Talk to Lectern</button>
     <button class="pill-btn" id="askAiBtn" type="button">🤖 Ask AI</button>
     <button class="pill-btn" id="helpBtn" type="button">❓ Help</button>
     <div class="byline">Developed by Anil Sharma<br>Former General Manager, Central Bank of India</div>
@@ -756,7 +810,7 @@
       <p>While reading, tap "🏠 Home" in the player bar to stop the audio and return to your shelf.</p>
 
       <h3>6. My Voice — read it in your own voice, no API required</h3>
-      <p>The "🎙️ My Voice" panel lets you record (with a live waveform and pause/resume/stop) or upload a sample of your own voice, entirely on this device, with a required consent checkbox and basic quality checks (length, loudness, silence). Each saved voice can be renamed, tested, or deleted. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel, and its documented URL contract) — without one, playback stops and Lectern tells you plainly rather than quietly substituting the browser voice. Switch "Voice source" to Browser Voice any time you want to keep listening without a connected engine. "Delete all local voice data" wipes every saved voice from this device, with confirmation.</p>
+      <p>The "🎙️ My Voice" panel lets you record (with a live waveform and pause/resume/stop) or upload a sample of your own voice, entirely on this device, with a required consent checkbox and basic quality checks (length, loudness, silence). Each saved voice can be tested or deleted. Actually generating speech in that voice needs a local voice-cloning engine you connect yourself (see "Connect Local Voice Engine" in that panel, and its documented URL contract). A newly saved voice shows "🔗 Clone Voice" until it has actually been sent to that engine and cloned; tapping it connects and clones the voice. If you select "My Voice" as your voice source and the engine isn't connected, playback stops and shows "My Voice engine is not connected. Connect the local AI voice engine to use your cloned voice." — and if the specific voice was never cloned, it shows "This voice has not been cloned by the local engine yet." Either way, Lectern never quietly substitutes the browser voice for your own. Switch "Voice source" to Browser Voice any time you want to keep listening without a connected engine. "Delete all local voice data" wipes every saved voice from this device, with confirmation.</p>
 
       <h3>7. Optional Cloud Voice Studio (paid, external)</h3>
       <p>If you'd rather have a real downloadable MP3 than the browser's voice, open "Optional Cloud Voice Studio", paste an OpenAI or ElevenLabs API key, pick a Quality level, and generate a chapter or the whole book. On ElevenLabs you can also record or upload a short sample of your own voice and Lectern will clone it there, so the book can be read in your own voice via their cloud service. This only works once Lectern is hosted on a website — the in-chat preview blocks calls to outside services.</p>
@@ -765,11 +819,17 @@
       <h3>8. Ask AI</h3>
       <p>The "🤖 Ask AI" button in the header opens a small assistant for questions about using Lectern, or about the book you're reading. It uses the same OpenAI key you enter in "Optional Cloud Voice Studio" (set Provider to OpenAI there first) — nothing goes through Claude, and like the other paid features it needs the internet and won't work in this in-chat preview.</p>
 
+      <h3>9. 🎙️ Voice Assistant — Drive Mode</h3>
+      <p>The "🎙️ Talk to Lectern" button in the header opens a large, hands-free screen for use while walking or driving. Tap the big mic button once and speak a command — the microphone only listens for that one instruction, never continuously, and you always see when it's LISTENING, PROCESSING or SPEAKING. You can say things like "next chapter", "pause", "go to chapter 3", "read this chapter", "bookmark this", "continue from where I stopped", "create a note", "read my notes", or "ask AI what does this chapter mean". A big "⏹ STOP" button always stops listening, speaking, or reading immediately.</p>
+      <p>Saying "speak the news" or "read India/world/business/technology/sports news" reads real, current headlines aloud — never invented ones. This needs the internet and a free API key from a news provider such as gnews.io, entered under "📰 News source settings" inside Drive Mode; without internet access or a key, Lectern says so plainly instead of making up a headline. Voice notes you create are saved only on this device, the same way your books and voices are. If your browser doesn't support speech recognition, Drive Mode tells you plainly and you can keep using the normal buttons instead.</p>
+      <p>Saying "what's the gold rate" reads the current gold price per 10 grams (24k and 22k), and "share price of &lt;company&gt;" reads a live BSE quote — both need their own free API key (goldapi.io and alphavantage.co respectively) entered under "💰 Gold &amp; share price settings" inside Drive Mode. Like the news, these only ever speak real live figures — never a guess — and say so plainly if there's no internet or no key configured.</p>
+
       <h3>Good to know</h3>
       <ul>
-        <li>Works fully offline once the page is loaded, except for Optional Cloud Voice Studio and Ask AI, which need the internet; My Voice recording and quality checks work fully offline, but generating speech needs a connected local engine.</li>
+        <li>Works fully offline once the page is loaded, except for Optional Cloud Voice Studio, Ask AI, and Speak the News, which need the internet; My Voice recording and quality checks work fully offline, but generating speech needs a connected local engine.</li>
         <li>Multi-column magazine layouts can read out of natural order.</li>
         <li>On iOS Safari, switching apps mid-sentence can restart that sentence.</li>
+        <li>Voice Assistant / Drive Mode needs a browser with speech recognition support (Chrome, Edge, and most Android browsers; not currently Firefox).</li>
       </ul>
     </div>
   </div>
@@ -797,6 +857,51 @@
       <div class="status-box" id="askAiStatusBox" style="margin-top:10px;"><div class="spinner"></div><span id="askAiStatusText"></span></div>
       <div id="askAiAnswer" style="margin-top:12px; font-size:14.5px; line-height:1.6; white-space:pre-wrap;"></div>
     </div>
+  </div>
+</div>
+
+<div class="drive-backdrop" id="driveBackdrop">
+  <div class="drive-top">
+    <h2>🎙️ Voice Assistant — Drive Mode</h2>
+    <button class="modal-close" id="driveCloseBtn" type="button" aria-label="Exit Drive Mode">✕</button>
+  </div>
+  <div class="drive-body">
+    <div class="drive-state-label" id="driveStateLabel">Tap the mic and speak</div>
+    <button class="drive-mic" id="driveMicBtn" type="button" title="Talk to Lectern">🎙️</button>
+    <div class="drive-transcript" id="driveTranscript"></div>
+    <div class="drive-response" id="driveResponse"></div>
+    <div class="drive-news-list" id="driveNewsList" style="display:none;"></div>
+    <div class="drive-notes-list" id="driveNotesList" style="display:none;"></div>
+  </div>
+  <div class="drive-bottom">
+    <button class="drive-settings-toggle" id="driveSettingsToggle" type="button">📰 News source settings</button>
+    <div class="drive-news-settings" id="driveNewsSettings">
+      <p class="helptext" style="margin-top:0;">Speaking the news needs a live internet news source. Add a free API key from a provider such as <a href="https://gnews.io" target="_blank" rel="noopener">gnews.io</a> — no paid subscription is required for this to work, and the key stays only in this browser.</p>
+      <div class="field">
+        <label for="newsProviderSelect">Provider</label>
+        <select id="newsProviderSelect">
+          <option value="gnews">GNews.io</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="newsApiKeyInput">API key</label>
+        <input type="password" id="newsApiKeyInput" placeholder="Paste your free API key">
+      </div>
+    </div>
+    <button class="drive-settings-toggle" id="driveFinanceSettingsToggle" type="button">💰 Gold &amp; share price settings</button>
+    <div class="drive-news-settings" id="driveFinanceSettings">
+      <p class="helptext" style="margin-top:0;">"What's the gold rate" and "share price of…" also need live data, from free-tier providers you sign up for yourself — the keys stay only in this browser.</p>
+      <div class="field">
+        <label for="goldApiKeyInput">Gold price key</label>
+        <input type="password" id="goldApiKeyInput" placeholder="Free key from goldapi.io">
+      </div>
+      <div class="field">
+        <label for="stocksApiKeyInput">Share price key</label>
+        <input type="password" id="stocksApiKeyInput" placeholder="Free key from alphavantage.co">
+      </div>
+      <p class="helptext">Share prices are looked up on the BSE via Alpha Vantage's free tier — say the company name or ticker as it's listed there (e.g. "share price of Reliance").</p>
+    </div>
+    <button class="drive-stop" id="driveStopBtn" type="button">⏹ STOP</button>
   </div>
 </div>
 
@@ -1086,7 +1191,7 @@
   }
 
   var DB_NAME = 'lectern_db';
-  var DB_VERSION = 2;
+  var DB_VERSION = 3;
   function openDB() {
     return new Promise(function(resolve, reject) {
       try {
@@ -1097,6 +1202,7 @@
           if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'id' });
           if (!db.objectStoreNames.contains('voiceProfiles')) db.createObjectStore('voiceProfiles', { keyPath: 'voiceId' });
           if (!db.objectStoreNames.contains('voiceSamples')) db.createObjectStore('voiceSamples', { keyPath: 'voiceId' });
+          if (!db.objectStoreNames.contains('voiceNotes')) db.createObjectStore('voiceNotes', { keyPath: 'id' });
         };
         req.onsuccess = function() { resolve(req.result); };
         req.onerror = function() { reject(req.error); };
@@ -1384,18 +1490,12 @@
     askAiStatusBox.classList.add('visible');
     askAiStatusText.textContent = msg;
   }
-  askAiSendBtn.addEventListener('click', function() {
-    var question = askAiInput.value.trim();
-    if (!question) return;
+  // Reusable Ask AI call — shared by the Ask AI modal and the Voice Assistant's "ask ai" command.
+  function askAiQuestion(question) {
     if (apiSettings.provider !== 'openai' || !apiSettings.apiKey) {
-      askAiAnswer.textContent = '';
-      setAskAiStatus('Ask AI needs an OpenAI key — open "Optional Cloud Voice Studio", set Provider to OpenAI, and paste your key there first.');
-      return;
+      return Promise.reject(new Error('Ask AI needs an OpenAI key — open "Optional Cloud Voice Studio", set Provider to OpenAI, and paste your key there first.'));
     }
-    askAiSendBtn.disabled = true;
-    askAiAnswer.textContent = '';
-    setAskAiStatus('Thinking…');
-    fetch('https://api.openai.com/v1/chat/completions', {
+    return fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiSettings.apiKey },
       body: JSON.stringify({
@@ -1411,7 +1511,18 @@
       return res.json();
     }).then(function(data) {
       var reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-      askAiAnswer.textContent = reply || 'No answer came back — try rephrasing the question.';
+      return reply || 'No answer came back — try rephrasing the question.';
+    });
+  }
+
+  askAiSendBtn.addEventListener('click', function() {
+    var question = askAiInput.value.trim();
+    if (!question) return;
+    askAiSendBtn.disabled = true;
+    askAiAnswer.textContent = '';
+    setAskAiStatus('Thinking…');
+    askAiQuestion(question).then(function(reply) {
+      askAiAnswer.textContent = reply;
       setAskAiStatus(null);
       askAiSendBtn.disabled = false;
     }).catch(function(err) {
@@ -2736,6 +2847,575 @@
   window.addEventListener('pagehide', function() {
     if (book) persistProgress();
   });
+
+  // ---------------- Voice Assistant / Drive Mode ----------------
+  var driveModeBtn = document.getElementById('driveModeBtn');
+  var driveBackdrop = document.getElementById('driveBackdrop');
+  var driveCloseBtn = document.getElementById('driveCloseBtn');
+  var driveStateLabel = document.getElementById('driveStateLabel');
+  var driveMicBtn = document.getElementById('driveMicBtn');
+  var driveTranscript = document.getElementById('driveTranscript');
+  var driveResponse = document.getElementById('driveResponse');
+  var driveNewsList = document.getElementById('driveNewsList');
+  var driveNotesList = document.getElementById('driveNotesList');
+  var driveSettingsToggle = document.getElementById('driveSettingsToggle');
+  var driveNewsSettings = document.getElementById('driveNewsSettings');
+  var newsProviderSelect = document.getElementById('newsProviderSelect');
+  var newsApiKeyInput = document.getElementById('newsApiKeyInput');
+  var driveFinanceSettingsToggle = document.getElementById('driveFinanceSettingsToggle');
+  var driveFinanceSettings = document.getElementById('driveFinanceSettings');
+  var goldApiKeyInput = document.getElementById('goldApiKeyInput');
+  var stocksApiKeyInput = document.getElementById('stocksApiKeyInput');
+  var driveStopBtn = document.getElementById('driveStopBtn');
+
+  var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var driveRecognition = null;
+  var driveWakeLock = null;
+  var driveSpeaking = false;
+  var driveState = { mode: 'idle', newsItems: [], newsIndex: -1 };
+
+  function loadNewsSettings() {
+    try {
+      var raw = localStorage.getItem('lectern_news_settings');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { provider: 'gnews', apiKey: '' };
+  }
+  var newsSettings = loadNewsSettings();
+  function saveNewsSettings() {
+    try { localStorage.setItem('lectern_news_settings', JSON.stringify(newsSettings)); } catch (e) {}
+  }
+  newsProviderSelect.value = newsSettings.provider || 'gnews';
+  newsApiKeyInput.value = newsSettings.apiKey || '';
+  newsProviderSelect.addEventListener('change', function() { newsSettings.provider = newsProviderSelect.value; saveNewsSettings(); });
+  newsApiKeyInput.addEventListener('change', function() { newsSettings.apiKey = newsApiKeyInput.value; saveNewsSettings(); });
+  driveSettingsToggle.addEventListener('click', function() { driveNewsSettings.classList.toggle('visible'); });
+
+  function loadFinanceSettings() {
+    try {
+      var raw = localStorage.getItem('lectern_finance_settings');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { goldApiKey: '', stocksApiKey: '' };
+  }
+  var financeSettings = loadFinanceSettings();
+  function saveFinanceSettings() {
+    try { localStorage.setItem('lectern_finance_settings', JSON.stringify(financeSettings)); } catch (e) {}
+  }
+  goldApiKeyInput.value = financeSettings.goldApiKey || '';
+  stocksApiKeyInput.value = financeSettings.stocksApiKey || '';
+  goldApiKeyInput.addEventListener('change', function() { financeSettings.goldApiKey = goldApiKeyInput.value; saveFinanceSettings(); });
+  stocksApiKeyInput.addEventListener('change', function() { financeSettings.stocksApiKey = stocksApiKeyInput.value; saveFinanceSettings(); });
+  driveFinanceSettingsToggle.addEventListener('click', function() { driveFinanceSettings.classList.toggle('visible'); });
+
+  function setDriveState(label) { driveStateLabel.textContent = label; }
+
+  function driveSpeak(text, cb) {
+    driveResponse.textContent = text;
+    if (!('speechSynthesis' in window)) { if (cb) cb(); return; }
+    speechSynthesis.cancel();
+    var utter = new SpeechSynthesisUtterance(text);
+    driveMicBtn.classList.remove('listening');
+    driveMicBtn.classList.add('speaking');
+    setDriveState('SPEAKING');
+    driveSpeaking = true;
+    utter.onend = utter.onerror = function() {
+      driveSpeaking = false;
+      driveMicBtn.classList.remove('speaking');
+      setDriveState('Tap the mic and speak');
+      if (cb) cb();
+    };
+    speechSynthesis.speak(utter);
+  }
+
+  function driveStopAll() {
+    try { if (driveRecognition) driveRecognition.abort(); } catch (e) {}
+    speechSynthesis.cancel();
+    driveSpeaking = false;
+    driveMicBtn.classList.remove('listening', 'speaking');
+    setDriveState('Tap the mic and speak');
+    if (state.playing) pausePlayback();
+    driveState.mode = 'idle';
+  }
+
+  function ensureRecognition() {
+    if (!SpeechRecognitionCtor) return null;
+    if (driveRecognition) return driveRecognition;
+    driveRecognition = new SpeechRecognitionCtor();
+    driveRecognition.continuous = false;
+    driveRecognition.interimResults = false;
+    driveRecognition.maxAlternatives = 1;
+    driveRecognition.onresult = function(e) {
+      var transcript = e.results[0] && e.results[0][0] ? e.results[0][0].transcript : '';
+      driveTranscript.textContent = transcript ? '"' + transcript + '"' : '';
+      driveMicBtn.classList.remove('listening');
+      if (driveState.mode === 'awaiting_note') {
+        driveState.mode = 'idle';
+        setDriveState('PROCESSING');
+        if (!transcript.trim()) { driveSpeak('I did not catch a note to save.'); return; }
+        saveVoiceNote(transcript).then(function() {
+          getAllNotesSorted().then(renderNotesList);
+          driveSpeak('Note saved: ' + transcript);
+        });
+        return;
+      }
+      setDriveState('PROCESSING');
+      handleVoiceCommand(transcript);
+    };
+    driveRecognition.onerror = function(e) {
+      driveMicBtn.classList.remove('listening');
+      setDriveState('Tap the mic and speak');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        driveResponse.textContent = 'Microphone access was denied — allow the microphone permission to use Drive Mode.';
+      } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        driveResponse.textContent = 'Could not hear that — please try again.';
+      }
+    };
+    driveRecognition.onend = function() {
+      driveMicBtn.classList.remove('listening');
+      if (!driveSpeaking) setDriveState('Tap the mic and speak');
+    };
+    return driveRecognition;
+  }
+
+  driveMicBtn.addEventListener('click', function() {
+    if (!SpeechRecognitionCtor) {
+      driveResponse.textContent = 'Voice commands are not supported by this browser. Please use a supported browser or the normal controls.';
+      return;
+    }
+    var rec = ensureRecognition();
+    if (!rec) return;
+    speechSynthesis.cancel();
+    driveTranscript.textContent = '';
+    driveResponse.textContent = '';
+    driveMicBtn.classList.add('listening');
+    setDriveState('LISTENING');
+    try { rec.start(); } catch (e) { /* already listening */ }
+  });
+
+  driveStopBtn.addEventListener('click', function() {
+    driveStopAll();
+    driveNewsList.style.display = 'none';
+    driveResponse.textContent = 'Stopped.';
+  });
+
+  function openDriveMode() {
+    driveBackdrop.classList.add('visible');
+    driveTranscript.textContent = '';
+    driveResponse.textContent = '';
+    setDriveState('Tap the mic and speak');
+    if (!SpeechRecognitionCtor) {
+      driveResponse.textContent = 'Voice commands are not supported by this browser. Please use a supported browser or the normal controls.';
+      driveMicBtn.disabled = true;
+    } else {
+      driveMicBtn.disabled = false;
+    }
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(function(lock) { driveWakeLock = lock; }).catch(function() {});
+    }
+  }
+  function closeDriveMode() {
+    driveStopAll();
+    driveBackdrop.classList.remove('visible');
+    if (driveWakeLock) { driveWakeLock.release().catch(function() {}); driveWakeLock = null; }
+  }
+  driveModeBtn.addEventListener('click', openDriveMode);
+  driveCloseBtn.addEventListener('click', closeDriveMode);
+  driveBackdrop.addEventListener('click', function(e) { if (e.target === driveBackdrop) closeDriveMode(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && driveBackdrop.classList.contains('visible')) closeDriveMode();
+  });
+
+  // ---- Voice notes (stored locally in IndexedDB, same as everything else in Lectern) ----
+  function saveVoiceNote(text) {
+    var rec = { id: Date.now(), text: text, createdAt: Date.now() };
+    return dbPut('voiceNotes', rec).then(function() { return rec; });
+  }
+  function getAllNotesSorted() {
+    return dbGetAll('voiceNotes').then(function(list) {
+      list.sort(function(a, b) { return b.createdAt - a.createdAt; });
+      return list;
+    });
+  }
+  function renderNotesList(list) {
+    driveNotesList.style.display = list.length ? 'block' : 'none';
+    driveNotesList.innerHTML = list.map(function(n) {
+      return '<div class="drive-note-item"><div class="meta">' + new Date(n.createdAt).toLocaleString() + '</div><div>' + escapeHtml(n.text) + '</div></div>';
+    }).join('');
+  }
+  function doNotes(t) {
+    if (/create a note/.test(t)) {
+      driveSpeak('Recording your note. Say it now.', function() {
+        driveState.mode = 'awaiting_note';
+        var rec = ensureRecognition();
+        if (!rec) return;
+        driveMicBtn.classList.add('listening');
+        setDriveState('LISTENING');
+        try { rec.start(); } catch (e) {}
+      });
+      return;
+    }
+    if (/delete (this|the latest|the last) note/.test(t)) {
+      getAllNotesSorted().then(function(list) {
+        if (!list.length) { driveSpeak('There are no notes to delete.'); return; }
+        dbDelete('voiceNotes', list[0].id).then(function() {
+          getAllNotesSorted().then(renderNotesList);
+          driveSpeak('Deleted your latest note.');
+        });
+      });
+      return;
+    }
+    if (/latest note/.test(t)) {
+      getAllNotesSorted().then(function(list) {
+        if (!list.length) { driveSpeak('You have no saved notes yet.'); return; }
+        renderNotesList(list);
+        driveSpeak(list[0].text);
+      });
+      return;
+    }
+    getAllNotesSorted().then(function(list) {
+      renderNotesList(list);
+      if (!list.length) { driveSpeak('You have no saved notes yet. Say "create a note" to add one.'); return; }
+      driveSpeak('You have ' + list.length + ' note' + (list.length === 1 ? '' : 's') + '. The latest is: ' + list[0].text);
+    });
+  }
+
+  // ---- News (real headlines only — never invented; needs internet and a user-supplied free API key) ----
+  function newsCategoryFromTranscript(t) {
+    if (/india/.test(t)) return 'india';
+    if (/world/.test(t)) return 'world';
+    if (/business/.test(t)) return 'business';
+    if (/tech/.test(t)) return 'technology';
+    if (/sport/.test(t)) return 'sports';
+    return 'general';
+  }
+  function fetchNews(category) {
+    if (!navigator.onLine) return Promise.reject(new Error('OFFLINE'));
+    if (!newsSettings.apiKey) return Promise.reject(new Error('NO_KEY'));
+    var url = 'https://gnews.io/api/v4/top-headlines?lang=en&max=5&apikey=' + encodeURIComponent(newsSettings.apiKey);
+    if (category === 'india') url += '&country=in';
+    else if (category && category !== 'general') url += '&topic=' + encodeURIComponent(category);
+    return fetch(url).then(function(res) {
+      if (!res.ok) return res.text().then(function() { throw new Error('REQUEST_FAILED'); });
+      return res.json();
+    }).then(function(data) {
+      return (data.articles || []).map(function(a) {
+        return {
+          title: a.title,
+          summary: a.description || '',
+          source: (a.source && a.source.name) || 'unknown source',
+          date: a.publishedAt ? new Date(a.publishedAt).toLocaleString() : ''
+        };
+      });
+    });
+  }
+  function renderNewsList(items, activeIdx) {
+    driveNewsList.style.display = items.length ? 'block' : 'none';
+    driveNewsList.innerHTML = items.map(function(it, i) {
+      return '<div class="drive-news-item' + (i === activeIdx ? ' active' : '') + '"><div class="headline">' + (i + 1) + '. ' + escapeHtml(it.title) + '</div><div class="meta">' + escapeHtml(it.source) + (it.date ? ' · ' + escapeHtml(it.date) : '') + '</div></div>';
+    }).join('');
+  }
+  function speakNewsList(items) {
+    var text = 'Here are today\'s top headlines. ' + items.map(function(it, i) { return (i + 1) + '. ' + it.title + '.'; }).join(' ') + ' Say "read the first story" or a number to hear more.';
+    driveSpeak(text);
+  }
+  function doNews(t) {
+    var category = newsCategoryFromTranscript(t);
+    driveResponse.textContent = 'Fetching the news…';
+    fetchNews(category).then(function(items) {
+      driveState.mode = 'news';
+      driveState.newsItems = items;
+      driveState.newsIndex = -1;
+      renderNewsList(items, -1);
+      if (!items.length) { driveSpeak('I could not find any current headlines right now.'); return; }
+      speakNewsList(items);
+    }).catch(function(err) {
+      driveState.mode = 'idle';
+      if (err.message === 'OFFLINE') driveSpeak("I can't retrieve current news without an internet connection.");
+      else if (err.message === 'NO_KEY') driveSpeak('Speaking the news needs a free news API key — open "News source settings" below the mic and add one.');
+      else driveSpeak('I could not reach the news service right now.');
+    });
+  }
+  function doNewsFollowUp(t) {
+    var items = driveState.newsItems;
+    if (!items.length) { driveSpeak('There is no news loaded — try saying "speak the news" first.'); return; }
+    if (/first story/.test(t)) { driveState.newsIndex = 0; }
+    else if (/next (news|story)/.test(t)) { driveState.newsIndex = Math.min(items.length - 1, driveState.newsIndex + 1); }
+    else if (/previous (news|story)/.test(t)) { driveState.newsIndex = Math.max(0, driveState.newsIndex - 1); }
+    else if (/headlines/.test(t)) { driveState.newsIndex = -1; renderNewsList(items, -1); speakNewsList(items); return; }
+    else if (/summarise|summarize|read more/.test(t)) {
+      var idx = driveState.newsIndex >= 0 ? driveState.newsIndex : 0;
+      var story = items[idx];
+      renderNewsList(items, idx);
+      driveSpeak(story.summary ? (story.title + '. ' + story.summary) : (story.title + '. No further summary is available for this story.'));
+      return;
+    }
+    if (driveState.newsIndex < 0) driveState.newsIndex = 0;
+    renderNewsList(items, driveState.newsIndex);
+    var current = items[driveState.newsIndex];
+    driveSpeak(current.title + (current.summary ? '. ' + current.summary : '') + '. Source: ' + current.source + (current.date ? ', ' + current.date : '') + '.');
+  }
+
+  // ---- Gold rate and share price (real live data only — never invented; needs internet and a user-supplied free API key) ----
+  function fetchGoldRate() {
+    if (!navigator.onLine) return Promise.reject(new Error('OFFLINE'));
+    if (!financeSettings.goldApiKey) return Promise.reject(new Error('NO_KEY'));
+    return fetch('https://www.goldapi.io/api/XAU/INR', {
+      headers: { 'x-access-token': financeSettings.goldApiKey, 'Content-Type': 'application/json' }
+    }).then(function(res) {
+      if (!res.ok) return res.text().then(function() { throw new Error('REQUEST_FAILED'); });
+      return res.json();
+    }).then(function(data) {
+      if (!data || typeof data.price_gram_24k !== 'number') throw new Error('REQUEST_FAILED');
+      return {
+        price24k10g: data.price_gram_24k * 10,
+        price22k10g: (data.price_gram_22k || 0) * 10
+      };
+    });
+  }
+  function doGold() {
+    driveResponse.textContent = 'Fetching the gold rate…';
+    fetchGoldRate().then(function(r) {
+      var text = 'The current gold rate is about ' + Math.round(r.price24k10g).toLocaleString('en-IN') + ' rupees per 10 grams for 24 karat';
+      if (r.price22k10g) text += ', and ' + Math.round(r.price22k10g).toLocaleString('en-IN') + ' rupees per 10 grams for 22 karat';
+      text += '.';
+      driveSpeak(text);
+    }).catch(function(err) {
+      if (err.message === 'OFFLINE') driveSpeak("I can't retrieve the gold rate without an internet connection.");
+      else if (err.message === 'NO_KEY') driveSpeak('The gold rate needs a free API key from goldapi.io — open "Gold & share price settings" below the mic and add one.');
+      else driveSpeak('I could not reach the gold price service right now.');
+    });
+  }
+  function fetchSharePrice(query) {
+    if (!navigator.onLine) return Promise.reject(new Error('OFFLINE'));
+    if (!financeSettings.stocksApiKey) return Promise.reject(new Error('NO_KEY'));
+    var symbol = query.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.BSE';
+    return fetch('https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=' + encodeURIComponent(symbol) + '&apikey=' + encodeURIComponent(financeSettings.stocksApiKey))
+      .then(function(res) {
+        if (!res.ok) return res.text().then(function() { throw new Error('REQUEST_FAILED'); });
+        return res.json();
+      }).then(function(data) {
+        var q = data && data['Global Quote'];
+        if (!q || !q['05. price']) throw new Error('NOT_FOUND');
+        return { symbol: symbol, price: q['05. price'], change: q['09. change'], changePercent: q['10. change percent'] };
+      });
+  }
+  function doStock(t) {
+    var m = t.match(/(?:share|stock) price(?: of| for)? (.+)/);
+    var company = m && m[1] ? m[1].trim() : '';
+    if (!company) { driveSpeak('Which company would you like the share price for?'); return; }
+    driveResponse.textContent = 'Fetching the share price…';
+    fetchSharePrice(company).then(function(r) {
+      var changeNum = parseFloat(r.change) || 0;
+      var text = 'The share price of ' + company + ' is ' + r.price + ' rupees, ' + (changeNum >= 0 ? 'up' : 'down') + ' ' + Math.abs(changeNum) + ' (' + r.changePercent + ') today, on the BSE.';
+      driveSpeak(text);
+    }).catch(function(err) {
+      if (err.message === 'OFFLINE') driveSpeak("I can't retrieve share prices without an internet connection.");
+      else if (err.message === 'NO_KEY') driveSpeak('Share prices need a free API key from alphavantage.co — open "Gold & share price settings" below the mic and add one.');
+      else if (err.message === 'NOT_FOUND') driveSpeak('I could not find a share price for ' + company + ' — try saying its exact BSE ticker symbol.');
+      else driveSpeak('I could not reach the share price service right now.');
+    });
+  }
+
+  // ---- Ask AI, reused from the Ask AI modal ----
+  function doAI(t, aiMatch) {
+    var question;
+    if (aiMatch && aiMatch[1] && aiMatch[1].trim()) question = aiMatch[1].trim();
+    else if (/summarise this chapter|summarize this chapter/.test(t)) question = 'Summarise the current chapter I am reading.';
+    else if (/explain this paragraph/.test(t)) question = 'Explain the sentence I am currently on in the book I am reading.';
+    else question = 'What does this document mean?';
+    if (book) {
+      var chapter = book.chapters[state.chapterIndex];
+      question += ' Context — book: "' + book.title + '", chapter: "' + chapter.title + '", current sentence: "' + (chapter.sentences[state.sentenceIndex] || '') + '".';
+    }
+    driveResponse.textContent = 'Thinking…';
+    askAiQuestion(question).then(function(reply) {
+      driveSpeak(reply);
+    }).catch(function(err) {
+      driveSpeak(err.message || 'I could not reach the AI right now.');
+    });
+  }
+
+  function wordToNumber(w) {
+    var map = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    if (map[w] !== undefined) return map[w];
+    return parseInt(w, 10) || 1;
+  }
+
+  // ---- Smart command router: classifies the transcript and calls Lectern's existing functions ----
+  // (NAVIGATION / READING / NEWS / NOTES / AI / BOOKMARK / SETTINGS / STOP — never a separate playback system)
+  function handleVoiceCommand(rawTranscript) {
+    var t = (rawTranscript || '').toLowerCase().trim();
+    if (!t) { driveSpeak("I didn't catch that — please try again."); return; }
+
+    // STOP
+    if (/^stop( everything)?$/.test(t) || /stop listening|stop drive mode|exit drive mode/.test(t)) { closeDriveMode(); return; }
+    if (/stop news/.test(t)) { driveState.mode = 'idle'; driveNewsList.style.display = 'none'; driveSpeak('Stopped the news.'); return; }
+    if (/stop reading/.test(t)) { if (state.playing) pausePlayback(); driveSpeak('Paused.'); return; }
+
+    // NEWS follow-ups take priority while a news list is open
+    if (driveState.mode === 'news' && /(first story|next (news|story)|previous (news|story)|headlines|summarise|summarize|read more)/.test(t)) {
+      doNewsFollowUp(t); return;
+    }
+
+    // NEWS
+    if (/\bnews\b/.test(t)) { doNews(t); return; }
+
+    // FINANCE
+    if (/gold (rate|price)/.test(t)) { doGold(); return; }
+    if (/(share|stock) price/.test(t)) { doStock(t); return; }
+
+    // NOTES
+    if (/\bnote\b/.test(t)) { doNotes(t); return; }
+
+    // AI
+    var aiMatch = t.match(/^ask ai\s*(.*)/);
+    if (aiMatch || /what does this (document|chapter|paragraph) mean|summarise this chapter|summarize this chapter|explain this paragraph/.test(t)) {
+      doAI(t, aiMatch); return;
+    }
+
+    // BOOKMARK
+    if (/bookmark|remember this (place|spot)/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      bookmarkBtn.click();
+      driveSpeak('Bookmarked.');
+      return;
+    }
+
+    // SETTINGS
+    if (/open settings/.test(t)) {
+      exportPanel.scrollIntoView({ behavior: 'smooth' });
+      driveSpeak('Opened settings.');
+      return;
+    }
+
+    // NAVIGATION
+    if (/go home/.test(t)) { goHome(); driveSpeak("You're home."); return; }
+    if (/open (my )?shelf/.test(t)) { goHome(); driveSpeak("Here's your shelf."); return; }
+    if (/open chapters?/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      chapterPanel.style.display = 'block';
+      chapterPanel.scrollIntoView({ behavior: 'smooth' });
+      driveSpeak('Here are the chapters.');
+      return;
+    }
+    if (/open the first book/.test(t)) {
+      dbGetAll('progress').then(function(list) {
+        list.sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+        if (!list.length) { driveSpeak('Your shelf is empty.'); return; }
+        openSavedBook(list[0].id);
+        driveSpeak('Opening ' + (list[0].title || 'your book') + '.');
+      });
+      return;
+    }
+    if (/open this book/.test(t)) {
+      driveSpeak(book ? 'This book is already open.' : 'Please choose a file first.');
+      return;
+    }
+    var chapterMatch = t.match(/(?:go to|jump to) chapter (\d+|one|two|three|four|five|six|seven|eight|nine|ten)/);
+    if (chapterMatch) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      var n = wordToNumber(chapterMatch[1]);
+      var idx = Math.max(0, Math.min(book.chapters.length - 1, n - 1));
+      jumpTo(idx, 0);
+      driveSpeak('Chapter ' + (idx + 1) + ': ' + book.chapters[idx].title + '.');
+      return;
+    }
+    if (/next chapter/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      if (state.chapterIndex + 1 < book.chapters.length) { jumpTo(state.chapterIndex + 1, 0); driveSpeak('Next chapter.'); }
+      else driveSpeak('This is the last chapter.');
+      return;
+    }
+    if (/previous chapter/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      if (state.chapterIndex > 0) { jumpTo(state.chapterIndex - 1, 0); driveSpeak('Previous chapter.'); }
+      else driveSpeak('This is the first chapter.');
+      return;
+    }
+    if (/next sentence/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      var chNext = book.chapters[state.chapterIndex];
+      jumpTo(state.chapterIndex, Math.min(chNext.sentences.length - 1, state.sentenceIndex + 1));
+      driveSpeak('Okay.');
+      return;
+    }
+    if (/previous sentence/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      jumpTo(state.chapterIndex, Math.max(0, state.sentenceIndex - 1));
+      driveSpeak('Okay.');
+      return;
+    }
+    if (/go to the beginning|start over/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      jumpTo(0, 0);
+      driveSpeak('Back to the beginning.');
+      return;
+    }
+    if (/continue from where i (stopped|left off)/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      resumeJumpBtn.click();
+      driveSpeak('Resuming where you left off.');
+      return;
+    }
+    if (/^go back$/.test(t)) {
+      if (book) { jumpTo(state.chapterIndex, Math.max(0, state.sentenceIndex - 1)); driveSpeak('Okay.'); }
+      else { goHome(); driveSpeak("You're home."); }
+      return;
+    }
+    if (/^go forward$/.test(t)) {
+      if (book) { var chFwd = book.chapters[state.chapterIndex]; jumpTo(state.chapterIndex, Math.min(chFwd.sentences.length - 1, state.sentenceIndex + 1)); driveSpeak('Okay.'); }
+      else driveSpeak('Open a book first.');
+      return;
+    }
+
+    // READING
+    if (/start reading|^continue$/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      speakFrom(state.chapterIndex, state.sentenceIndex);
+      driveSpeak('Reading.');
+      return;
+    }
+    if (/^pause$/.test(t)) {
+      if (state.playing) pausePlayback();
+      driveSpeak('Paused.');
+      return;
+    }
+    if (/read this chapter/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      speakFrom(state.chapterIndex, 0);
+      driveSpeak('Reading this chapter.');
+      return;
+    }
+    if (/read (this|the next paragraph)/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      speakFrom(state.chapterIndex, state.sentenceIndex);
+      driveSpeak('Reading.');
+      return;
+    }
+    if (/repeat that/.test(t)) {
+      if (!book) { driveSpeak('Open a book first.'); return; }
+      speakFrom(state.chapterIndex, state.sentenceIndex);
+      driveSpeak('Repeating.');
+      return;
+    }
+    if (/read faster/.test(t)) {
+      state.rate = Math.min(1.8, Math.round((state.rate + 0.2) * 10) / 10);
+      rateRange.value = state.rate;
+      rateRange.dispatchEvent(new Event('input'));
+      driveSpeak('Reading faster.');
+      return;
+    }
+    if (/read slower/.test(t)) {
+      state.rate = Math.max(0.6, Math.round((state.rate - 0.2) * 10) / 10);
+      rateRange.value = state.rate;
+      rateRange.dispatchEvent(new Event('input'));
+      driveSpeak('Reading slower.');
+      return;
+    }
+
+    driveSpeak("Sorry, I didn't understand that command. Try the Help guide in the header for a list of things you can say.");
+  }
 
   renderMyVoices();
   renderShelf();
