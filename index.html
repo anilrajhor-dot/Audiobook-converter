@@ -268,7 +268,15 @@
   .book-view { display: none; }
   .book-view.visible { display: block; }
 
-  .back-to-shelf-btn { margin-bottom: 12px; }
+  .back-to-shelf-bar {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    background: var(--bg);
+    padding: 8px 0 12px;
+    margin: -8px 0 0;
+  }
+  .back-to-shelf-btn { display: inline-flex; }
   .book-meta {
     display: flex;
     justify-content: space-between;
@@ -770,7 +778,9 @@
     </details>
 
     <div class="book-view" id="bookView">
-      <button class="chip-btn back-to-shelf-btn" id="backToShelfBtn" type="button">← Back to shelf</button>
+      <div class="back-to-shelf-bar">
+        <button class="chip-btn back-to-shelf-btn" id="backToShelfBtn" type="button">← Back to shelf</button>
+      </div>
       <div class="resume-banner" id="resumeBanner">
         <span id="resumeText"></span>
         <div class="actions">
